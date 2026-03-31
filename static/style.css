@@ -1,0 +1,157 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background-color: #f5f5f5;
+}
+
+h1, h2 {
+    color: #333;
+}
+
+form {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+label {
+    display: inline-block;
+    width: 150px;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+input[type="text"],
+input[type="number"],
+input[type="date"] {
+    width: 250px;
+    padding: 5px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+}
+
+button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    background-color: #fff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+th, td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+
+tr:hover {
+    background-color: #f9f9f9;
+}
+
+a {
+    color: #e74c3c;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+hr {
+    margin: 30px 0;
+    border: 0;
+    border-top: 1px solid #ddd;
+}
+
+/* Navbar personalizada */
+.navbar {
+    background-color: #333;   /* fondo gris oscuro */
+    padding: 10px 20px;
+}
+
+.navbar ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    gap: 20px;
+}
+
+.navbar li {
+    display: inline;
+}
+
+.navbar a {
+    text-decoration: none;
+    color: #f2f2f2;
+    font-weight: bold;
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+}
+
+.navbar a:hover {
+    background-color: #555;
+    color: white;
+}
+
+/* Estilo para dropdown */
+.dropdown {
+    position: relative;
+}
+
+.dropdown .submenu {
+    display: none;
+    position: absolute;
+    background-color: #333;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    min-width: 160px;
+    z-index: 1000;
+}
+
+.dropdown .submenu li a {
+    display: block;
+    padding: 8px 12px;
+    color: #f2f2f2;
+    text-decoration: none;
+}
+
+.dropdown .submenu li a:hover {
+    background-color: #555;
+}
+
+/* Mostrar el submenú al pasar el mouse */
+.dropdown:hover .submenu {
+    display: block;
+}
+
+
+  .form-row{ display:flex; align-items:center; margin-bottom:12px; }
+  .form-row label{ width:160px; margin-right:12px; }  /* ancho fijo para todas las etiquetas */
+  .form-row .field{ flex:1; display:flex; gap:12px; } /* contenedor de inputs */
+  .form-row .short{ width:140px; }    
+  

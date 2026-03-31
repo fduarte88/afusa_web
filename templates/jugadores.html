@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>ABM Jugadores</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    
+</head>
+<body>
+    <!-- Menú de navegación -->
+    <nav class="navbar">
+    <ul>
+        <li><a href="{{ url_for('index') }}">Home</a></li>
+        <li><a href="{{ url_for('index') }}">Jugadores</a></li>
+        
+        <!-- Dropdown de Operaciones -->
+        <li class="dropdown">
+           <a href="#">Operaciones ▾</a>
+            <ul class="submenu">
+                <li><a href="{{ url_for('aportes') }}">Reg. de Aportes</a></li>
+            </ul>
+        </li>
+
+        <li><a href="{{ url_for('about') }}">Acerca de</a></li>
+    </ul>
+</nav>
+
+    <h1>AFUSA - Gestión de Jugadores</h1>
+
+    <!-- Formulario para agregar jugador -->
+    <h2>Agregar Jugador</h2>
+    
+    <form action="{{ url_for('update_jugador', id=jugador_edit.id) if jugador_edit else url_for('add_jugador') }}" method="POST">
+    <label>Código:</label>
+    <input type="number" name="codJugador"
+        value="{{ jugador_edit.codJugador if jugador_edit else siguiente_codigo }}"
+        required readonly
+        style="background-color: #e9ecef; color: #6c757d;"
+    ><br>
+
+    <label>Nombre:</label>
+    <input type="text" name="nombreJugador" value="{{ jugador_edit.nombreJugador if jugador_edit else '' }}" required><br>
+
+    <label>Apellido:</label>
+    <input type="text" name="apellidoJugador" value="{{ jugador_edit.apellidoJugador if jugador_edit else '' }}" required><br>
+
+    <label>Documento:</label>
+    <input type="text" name="numeroDocumento" value="{{ jugador_edit.numeroDocumento if jugador_edit else '' }}" required><br>
+
+    <label>Fecha Nacimiento:</label>
+    <input type="date" name="fechaNacimiento" value="{{ jugador_edit.fechaNacimiento.strftime('%Y-%m-%d') if jugador_edit else '' }}" required><br>
+    <!-- <input type="date" name="fechaNacimiento" value="{{ jugador_edit.fechaNacimiento if jugador_edit else '' }}" required><br> -->
+
+    <label>Alias:</label>
+    <input type="text" name="alias" value="{{ jugador_edit.alias if jugador_edit else '' }}"><br>
+
+    <button type="submit">{{ 'Guardar Cambios' if jugador_edit else 'Agregar' }}</button>
+    
+
+    {% if jugador_edit %}
+        <a href="{{ url_for('index') }}">Cancelar</a>
+    {% endif %}
+</form>
+
+    <hr>
+
+    <!-- Listado de jugadores -->
+    <h2>Listado de Jugadores</h2>
+   
+     <!-- Cuadro de búsqueda -->
+    <input type="text" id="searchInput" placeholder="Buscar por nombre o apellido..." style="width: 550px;">
+    
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Apellido</th>
+                <th>Documento</th>
+                <th>Fecha Nacimiento</th>
+                <th>Alias</th>
+                <th>Fecha Registro</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for j in jugadores %}
+            <tr>
+                <td>{{ j.codJugador }}</td>
+                <td>{{ j.nombreJugador }}</td>
+                <td>{{ j.apellidoJugador }}</td>
+                <td>{{ j.numeroDocumento }}</td>
+                <td>{{ j.fechaNacimiento.strftime('%d/%m/%Y') if j.fechaNacimiento else '' }}</td>
+                <td>{{ j.alias or '-' }}</td>
+                <td>{{ j.adddate.strftime('%d/%m/%Y') if j.adddate else '' }}</td>
+               
+                <td>
+                    <a href="{{ url_for('edit_jugador', id=j.id) }}" class="btn btn-primary btn-sm" style="color: #007bff;">Editar</a> |
+                    <a href="{{ url_for('delete_jugador', id=j.id) }}" onclick="return confirm('¿Eliminar este jugador?')">Eliminar</a>
+                    
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8">No hay jugadores registrados.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <script>
+
+document.getElementById("searchInput").addEventListener("keyup", function() {
+    let filter = this.value.toLowerCase();
+    let rows = document.querySelectorAll("table tbody tr");
+
+    rows.forEach(function(row) {
+        let nombre = row.cells[1]?.textContent.toLowerCase();   // Columna Nombre
+        let apellido = row.cells[2]?.textContent.toLowerCase(); // Columna Apellido
+
+        if (nombre && apellido && (nombre.includes(filter) || apellido.includes(filter))) {
+            row.style.display = "";
+        } else {
+            row.style.display = "none";
+        }
+    });
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
+    
+    const comparer = (idx, asc) => (a, b) => ((v1, v2) => 
+        v1 !== '' && v2 !== '' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2)
+    )(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
+    
+    document.querySelectorAll('th').forEach((th, i, headers) => {
+        // No hacer clicable la columna de acciones (última columna)
+        if (i < headers.length - 1) {
+            th.addEventListener('click', function() {
+                const tbody = this.closest('table').querySelector('tbody');
+                Array.from(tbody.querySelectorAll('tr'))
+                    .sort(comparer(i, this.asc = !this.asc))
+                    .forEach(tr => tbody.appendChild(tr));
+                
+                // Actualizar indicadores visuales
+                headers.forEach(header => {
+                    header.classList.remove('sort-asc', 'sort-desc');
+                    if (header === th) {
+                        header.classList.add(this.asc ? 'sort-asc' : 'sort-desc');
+                    }
+                });
+            });
+            th.style.cursor = 'pointer';
+        }
+    });
+});
+</script>
+</body>
+</html>

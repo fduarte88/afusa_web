@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Acerca de</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <ul>
+            <li><a href="{{ url_for('index') }}">Home</a></li>
+            <li><a href="{{ url_for('index') }}">Jugadores</a></li>
+            <li><a href="#">Operaciones</a></li>
+            <li><a href="{{ url_for('about') }}">Acerca de</a></li>
+        </ul>
+    </nav>
+
+    <div style="margin: 30px;">
+        <h1>Acerca de esta aplicación</h1>
+        <p>Esta página web fue desarrollada como sistema de gestión de jugadores para AFUSA.</p>
+        
+        <h2>Información del desarrollador</h2>
+        <ul>
+            <li><strong>Nombre:</strong> Fernando Duarte Martínez</li>
+            <li><strong>Teléfono:</strong> +595 985 442 209</li>
+            <li><strong>Versión:</strong> 1.0</li>
+            <li><strong>Fecha de creación:</strong> {{ fecha_creacion }}</li>
+        </ul>
+    </div>
+</body>
+</html>

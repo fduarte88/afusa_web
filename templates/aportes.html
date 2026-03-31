@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Registro de Aportes</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <ul>
+            <li><a href="{{ url_for('index') }}">Home</a></li>
+            <li><a href="{{ url_for('index') }}">Jugadores</a></li>
+            <li class="dropdown">
+                <a href="#">Operaciones ▾</a>
+                <ul class="submenu">
+                    <li><a href="{{ url_for('aportes') }}">Registro de Aportes</a></li>
+                </ul>
+            </li>
+            <li><a href="{{ url_for('about') }}">Acerca de</a></li>
+        </ul>
+    </nav>
+
+    <h1>Registro de Aportes</h1>
+
+    <!-- Formulario -->
+    <form action="{{ url_for('aportes') }}" method="POST">
+
+        <!-- Fecha -->
+        <div class="form-row">
+        <label for="fechaAporte">Fecha:</label>
+        <div class="field">
+            <input type="date" id="fechaAporte" name="fechaAporte" class="form-control" required
+                value="{{ datetime.utcnow().strftime('%Y-%m-%d') }}">
+        </div>
+        </div>
+
+<!-- Código + Nombre (misma fila) -->
+        <div class="form-row">
+        <label for="codigo_jugador">Código de Jugador:</label>
+        <div class="field">
+            <input type="text" id="codigo_jugador" name="codigo_jugador" class="form-control" style="width:140px;" placeholder="Código" required>
+            <input type="text" id="nombre_jugador" class="form-control" style="width:400px;" readonly>
+            <input type="hidden" id="idJugador" name="idJugador">
+            <small>Presioná * para buscar o escribí el código y Enter</small>
+            <br>
+        </div>
+        </div>
+
+<!-- Tipo de Aporte -->
+       <div class="form-row">
+        <label for="tipo_aporte">Tipo de Aporte:</label>
+          <div class="field">
+            <select id="tipo_aporte" name="tipo_aporte" class="form-control select-long" required>
+            <option value="" disabled selected>Seleccione...</option>
+            {% for t in tipos %}
+                <option value="{{ t.idTipoAporte }}">{{ t.descripcion }}</option>
+            {% endfor %}
+            </select>
+          </div>
+       </div>
+
+<!-- Monto -->
+        <div class="form-row">
+          <label for="importe">Monto:</label>
+            <div class="field">
+              <input type="number" id="importe" name="importe" class="form-control" step="0.01" min="0" required>
+            </div>
+        </div><br>
+
+        <button type="submit">Registrar Aporte</button>
+
+    </form>
+
+    <hr>
+
+    <!-- Listado -->
+    <h2>Historial de Aportes</h2>
+<table border="1" cellpadding="5" cellspacing="0">
+    <thead>
+        <tr>
+            <th>Jugador</th>
+            <th>Tipo</th>
+            <!--<th>Descripción</th> IGNORE -->
+            <th>Importe</th>
+            <th>Fecha</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for a in aportes %}
+        <tr>
+            <td>{{ a.jugador }}</td>
+            <td>{{ a.tipo }}</td>
+            <!--<td>{{ a.descripcion or '-' }}</td> IGNORE -->
+            <td>{{ a.importe }}</td>
+            <td>{{ a.fecha }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5">No hay aportes registrados.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<script>
+// Mapa simple: id, codigo, nombre
+const JUGADORES = [
+  {% for j in jugadores %}
+    { id: {{ j.id }}, codigo: "{{ j.codJugador }}", nombre: "{{ (j.nombreJugador ~ ' ' ~ j.apellidoJugador)|e }}" }{% if not loop.last %},{% endif %}
+  {% endfor %}
+];
+</script>
+   
+
+<script>
+  document.getElementById("codigo_jugador").addEventListener("blur", async function() {
+    const codigo = this.value.trim();
+    const nombre = document.getElementById("nombre_jugador");
+    const idJug  = document.getElementById("idJugador");
+
+  nombre.value = "";
+  idJug.value = "";
+
+  if (!codigo) return;
+
+  const r = await fetch(`/api/jugador/${codigo}`);
+  if (!r.ok) { nombre.value = "No encontrado"; return; }
+
+  const d = await r.json();
+  if (d.found) {
+    nombre.value = d.nombre;
+    idJug.value  = d.id;
+  } else {
+    nombre.value = "No encontrado";
+  }
+});
+</script>
+
+<!-- 🔹 Modal de búsqueda de jugadores -->
+<div id="modalJugadores" class="modal" 
+     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000;">
+
+  <div style="background:#fff; width:700px; max-height:80vh; margin:6rem auto; 
+              padding:20px; border-radius:8px; overflow:auto; box-shadow:0 0 10px rgba(0,0,0,0.3);">
+
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h3 style="margin:0;">Buscar Jugador</h3>
+      <button id="cerrarModal" type="button" 
+              style="background:#ccc; border:none; border-radius:4px; padding:5px 10px; cursor:pointer;">
+        X
+      </button>
+    </div>
+
+    <div style="margin:15px 0;">
+      <input type="text" id="buscadorJugador" placeholder="Escribí para buscar por código o nombre..." 
+             style="width:100%; padding:8px; border:1px solid #ddd; border-radius:4px;">
+    </div>
+
+    <table border="1" cellpadding="5" cellspacing="0" 
+           style="width:100%; border-collapse:collapse; text-align:left;">
+      <thead style="background:#f0f0f0;">
+        <tr>
+          <th style="width:100px;">Código</th>
+          <th>Nombre</th>
+          <th>Apellido</th>
+        </tr>
+      </thead>
+      <tbody id="tablaJugadoresBody">
+        {% for j in jugadores %}
+        <tr>
+          <td>{{ j.codJugador }}</td>
+          <td>{{ j.nombreJugador }}</td>
+          <td>{{ j.apellidoJugador }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+  </div>
+</div>
+
+
+<script>
+
+document.addEventListener('DOMContentLoaded', function () {
+  const inpCodigo = document.getElementById('codigo_jugador');
+  const inpNombre = document.getElementById('nombre_jugador');
+  const hidId     = document.getElementById('idJugador');
+
+  // Si usás modal, referencialo aquí (si no lo tenés, esto no rompe)
+  const modal     = document.getElementById('modalJugadores');
+  const btnCerrar = document.getElementById('cerrarModal');
+
+  function abrirModal(){ if(modal){ modal.style.display = 'block'; } }
+  function cerrarModal(){ if(modal){ modal.style.display = 'none'; } }
+
+  function buscarPorCodigo(codigo) {
+    return JUGADORES.find(j => j.codigo === String(codigo).trim());
+  }
+
+  function syncDesdeCodigo() {
+    const val = inpCodigo.value.trim();
+    if (!val) { hidId.value = ''; inpNombre.value = ''; return false; }
+    const jug = buscarPorCodigo(val);
+    if (jug) {
+      hidId.value   = jug.id;
+      inpNombre.value = jug.nombre;
+      return true;
+    } else {
+      hidId.value   = '';
+      inpNombre.value = '';
+      return false;
+    }
+  }
+
+  // Enter: validar/buscar
+  inpCodigo.addEventListener('keydown', function (e) {
+    // Asterisco: abrir modal
+    const esAsterisco = (e.key === '*') || (e.keyCode === 106) || (e.shiftKey && e.key === '8');
+    if (esAsterisco) { e.preventDefault(); abrirModal(); return; }
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!syncDesdeCodigo()) {
+        alert('Código de jugador no encontrado.');
+        inpCodigo.select();
+      }
+    }
+  });
+
+  // Al salir del campo, sincroniza (silencioso)
+  inpCodigo.addEventListener('blur', syncDesdeCodigo);
+
+  // Cerrar modal si existe
+  if (btnCerrar) btnCerrar.addEventListener('click', cerrarModal);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarModal(); });
+
+  // (Opcional) en el submit del formulario asegurar idJugador
+  const form = document.getElementById('formAporte');
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      if (!hidId.value) {
+        if (!syncDesdeCodigo()) {
+          e.preventDefault();
+          alert('Seleccioná un jugador válido (usa * para buscar o escribí un código existente).');
+          inpCodigo.focus();
+        }
+      }
+    });
+  }
+});
+</script>
+
+
+</body>
+</html>
