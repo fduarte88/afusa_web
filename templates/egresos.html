@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Registro de Egresos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <ul>
+            <li><a href="{{ url_for('index') }}">Home</a></li>
+            <li><a href="{{ url_for('index') }}">Jugadores</a></li>
+            <li class="dropdown">
+                <a href="#">Operaciones ▾</a>
+                <ul class="submenu">
+                    <li><a href="{{ url_for('aportes') }}">Registro de Aportes</a></li>
+                    <li><a href="{{ url_for('egresos') }}">Registro de Egresos</a></li>
+                </ul>
+            </li>
+            <li><a href="{{ url_for('about') }}">Acerca de</a></li>
+        </ul>
+    </nav>
+
+    <h1>Registro de Egresos</h1>
+
+    <!-- Formulario de carga -->
+    <form action="{{ url_for('egresos') }}" method="POST">
+
+        <div class="form-row">
+            <label for="fechaEgreso">Fecha:</label>
+            <div class="field">
+                <input type="date" id="fechaEgreso" name="fechaEgreso" class="form-control" required
+                    value="{{ datetime.utcnow().strftime('%Y-%m-%d') }}">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <label for="tipo_egreso">Tipo de Egreso:</label>
+            <div class="field">
+                <select id="tipo_egreso" name="tipo_egreso" class="form-control select-long" required>
+                    <option value="" disabled selected>Seleccione...</option>
+                    {% for t in tipos %}
+                        <option value="{{ t.idTipoEgreso }}">{{ t.descripcion }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <label for="descripcion">Descripción:</label>
+            <div class="field">
+                <input type="text" id="descripcion" name="descripcion" class="form-control" style="width:400px;" placeholder="Opcional">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <label for="importe">Importe:</label>
+            <div class="field">
+                <input type="number" id="importe" name="importe" class="form-control" step="1" min="0" required>
+            </div>
+        </div><br>
+
+        <button type="submit">Registrar Egreso</button>
+        <button type="button" onclick="imprimirReporte()">Imprimir Reporte</button>
+    </form>
+
+    <hr>
+
+    <!-- Gestión de tipos de egreso -->
+    <details style="margin: 10px 0 20px 0;">
+        <summary style="cursor:pointer; font-weight:bold; font-size:14px;">Administrar Tipos de Egreso</summary>
+        <div style="margin-top:10px; padding:12px; border:1px solid #ddd; border-radius:6px; max-width:500px;">
+            <form action="{{ url_for('add_tipo_egreso') }}" method="POST" style="display:flex; gap:8px; margin-bottom:10px;">
+                <input type="text" name="descripcion" class="form-control" placeholder="Nuevo tipo de egreso..." required style="flex:1;">
+                <button type="submit">Agregar</button>
+            </form>
+            <table border="1" cellpadding="4" cellspacing="0" style="width:100%; border-collapse:collapse;">
+                <thead style="background:#f0f0f0;">
+                    <tr><th>#</th><th>Descripción</th><th></th></tr>
+                </thead>
+                <tbody>
+                {% for t in tipos %}
+                <tr>
+                    <td>{{ t.idTipoEgreso }}</td>
+                    <td>{{ t.descripcion }}</td>
+                    <td>
+                        <a href="{{ url_for('delete_tipo_egreso', id=t.idTipoEgreso) }}"
+                           onclick="return confirm('¿Eliminar este tipo? Solo se puede si no tiene egresos asociados.')"
+                           style="color:red;">Eliminar</a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </details>
+
+    <!-- Historial -->
+    <h2>Historial de Egresos</h2>
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <tr>
+                <th>Tipo de Egreso</th>
+                <th>Descripción</th>
+                <th>Importe</th>
+                <th>Fecha</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in egresos %}
+            <tr>
+                <td>{{ e.tipo }}</td>
+                <td>{{ e.descripcion or '-' }}</td>
+                <td>{{ "{:,.0f}".format(e.importe).replace(",", ".") }}</td>
+                <td>{{ e.fecha }}</td>
+                <td>
+                    <button type="button" onclick="abrirEditar({{ e.id }}, '{{ e.fechaRaw }}', {{ e.codTipoEgreso }}, {{ e.importe }}, '{{ e.descripcion or '' }}')">Editar</button>
+                    <a href="{{ url_for('delete_egreso', id=e.id) }}"
+                       onclick="return confirm('¿Eliminar este egreso?')" style="color:red;">Eliminar</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5">No hay egresos registrados.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <!-- Modal Editar -->
+    <div id="modalEditar" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000;">
+        <div style="background:#fff; width:420px; margin:8rem auto; padding:24px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.3);">
+            <h3 style="margin-top:0;">Editar Egreso</h3>
+            <form id="formEditar" method="POST">
+                <div class="form-row">
+                    <label>Fecha:</label>
+                    <div class="field"><input type="date" name="fechaEgreso" id="edit_fecha" class="form-control" required></div>
+                </div>
+                <div class="form-row">
+                    <label>Tipo de Egreso:</label>
+                    <div class="field">
+                        <select name="tipo_egreso" id="edit_tipo" class="form-control select-long" required>
+                            {% for t in tipos %}
+                            <option value="{{ t.idTipoEgreso }}">{{ t.descripcion }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label>Descripción:</label>
+                    <div class="field"><input type="text" name="descripcion" id="edit_desc" class="form-control" style="width:280px;"></div>
+                </div>
+                <div class="form-row">
+                    <label>Importe:</label>
+                    <div class="field"><input type="number" name="importe" id="edit_importe" class="form-control" step="1" min="0" required></div>
+                </div>
+                <br>
+                <button type="submit">Guardar</button>
+                <button type="button" onclick="document.getElementById('modalEditar').style.display='none'">Cancelar</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    function abrirEditar(id, fecha, tipoId, importe, desc) {
+        document.getElementById('formEditar').action = '/egresos/update/' + id;
+        document.getElementById('edit_fecha').value = fecha;
+        document.getElementById('edit_importe').value = importe;
+        document.getElementById('edit_desc').value = desc;
+        const sel = document.getElementById('edit_tipo');
+        for (let i = 0; i < sel.options.length; i++) {
+            if (parseInt(sel.options[i].value) === tipoId) { sel.selectedIndex = i; break; }
+        }
+        document.getElementById('modalEditar').style.display = 'block';
+    }
+
+    function imprimirReporte() {
+        const fecha = document.getElementById('fechaEgreso').value;
+        if (!fecha) { alert('Seleccioná una fecha primero.'); return; }
+        window.open('/egresos/pdf?fecha=' + fecha, '_blank');
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') document.getElementById('modalEditar').style.display = 'none';
+    });
+    </script>
+
+</body>
+</html>
