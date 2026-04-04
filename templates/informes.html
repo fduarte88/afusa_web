@@ -96,6 +96,27 @@
 
         <hr class="sep">
 
+        <!-- Progreso mensualidades -->
+        <div class="informe-box" style="margin-top:20px;">
+            <h2>Progreso de Mensualidades</h2>
+            <p style="font-size:12px; color:#666; margin-top:-8px; margin-bottom:16px;">
+                Muestra el pago de mensualidad de cada jugador, mes por mes, para el año seleccionado.
+            </p>
+            <div class="informe-row">
+                <label>Año:</label>
+                <select id="anio_mens" class="form-control" style="width:100px; font-size:13px;">
+                    <option value="2026" selected>2026</option>
+                    <option value="2025">2025</option>
+                    <option value="2027">2027</option>
+                </select>
+            </div>
+            <div style="margin-top:18px;">
+                <button class="btn-informe" style="background:#6a3d8a;" onclick="generarMensualidades()">Progreso Mensualidades</button>
+            </div>
+        </div>
+
+        <hr class="sep">
+
         <!-- Resumen general -->
         <div class="informe-box" style="margin-top:20px;">
             <h2>Resumen General</h2>
@@ -138,6 +159,11 @@
 
         function generarGeneral() {
             window.open('/informes/pdf/general', '_blank');
+        }
+
+        function generarMensualidades() {
+            const anio = document.getElementById('anio_mens').value;
+            window.open('/informes/pdf/mensualidades?anio=' + anio, '_blank');
         }
     </script>
 </body>

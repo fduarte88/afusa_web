@@ -162,13 +162,20 @@ def aportes():
         fecha = datetime.strptime(request.form.get('fechaAporte'), "%Y-%m-%d")
         importe = request.form.get('importe')
 
+        # Si es Mensualidad y se indicó mes destino, guardar en descripcion
+        mes_destino = request.form.get('mes_destino', '').strip()
+        if tipo and tipo.descripcion == 'Mensualidad' and mes_destino:
+            desc = f"mes:{mes_destino}"
+        else:
+            desc = tipo.descripcion if tipo else ''
+
         nuevo_aporte = Aporte(
-            idJugador=jugador_id,                              # FK
-            codTipoAporte=(tipo.idTipoAporte if tipo else None),  # FK
-            descripcion=(tipo.descripcion if tipo else ''),    # viene de TipoAporte
-            fechaAporte=fecha,                                 # del form
-            importe=importe                                    # monto
-            )   # 'id' es autonumérico y 'adddate' se completa por default en la DB
+            idJugador=jugador_id,
+            codTipoAporte=(tipo.idTipoAporte if tipo else None),
+            descripcion=desc,
+            fechaAporte=fecha,
+            importe=importe
+            )
         db.session.add(nuevo_aporte)
         db.session.commit()
 
@@ -235,6 +242,7 @@ def caja():
             "fecha": a.fechaAporte.strftime("%d/%m/%Y"),
             "fechaRaw": a.fechaAporte.strftime("%Y-%m-%d"),
             "codTipoAporte": a.codTipoAporte,
+            "idJugador": a.idJugador,
         })
 
     egresos_data = []
@@ -304,7 +312,11 @@ def aportes_pdf():
     msg_style = ParagraphStyle('msg', parent=styles['Normal'],
                                fontSize=11, alignment=TA_CENTER, spaceBefore=30)
 
+    anio_actual = datetime.now().year
+    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=9,
+                                 alignment=TA_CENTER, textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
     elementos = []
+    elementos.append(Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style))
     elementos.append(Paragraph(f"Resumen de la Jornada - {fecha_larga}", titulo_style))
     elementos.append(Spacer(1, 0.4*cm))
 
@@ -501,7 +513,11 @@ def egresos_pdf():
                                   fontSize=11, alignment=TA_CENTER, spaceBefore=30)
     subtitulo_style = ParagraphStyle('subtitulo', parent=styles['Heading2'],
                                      fontSize=11, spaceAfter=6)
+    anio_actual = datetime.now().year
+    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=9,
+                                 alignment=TA_CENTER, textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
     elementos = []
+    elementos.append(Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style))
     elementos.append(Paragraph(f"Resumen de Egresos - {fecha_larga}", titulo_style))
     elementos.append(Spacer(1, 0.4*cm))
 
@@ -671,7 +687,11 @@ def caja_pdf_jornada():
         res_eg[t] = res_eg.get(t, 0) + int(e.importe)
         cnt_eg[t] = cnt_eg.get(t, 0) + 1
 
+    anio_actual = datetime.now().year
+    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=9,
+                                 alignment=TA_CENTER, textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
     elementos = []
+    elementos.append(Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style))
     elementos.append(Paragraph("Resumen de la Jornada", titulo_style))
     elementos.append(Paragraph(fecha_larga, ParagraphStyle('fec', parent=styles['Normal'],
                                 fontSize=11, alignment=TA_CENTER, spaceAfter=10)))
@@ -691,14 +711,14 @@ def caja_pdf_jornada():
     else:
         elementos.append(make_resumen(res_eg, cnt_eg, total_eg, COLOR_EG, COLOR_BG_EG, COLOR_TOT_EG))
 
-    # --- BALANCE GENERAL ---
+    # --- BALANCE FINAL ---
     elementos.append(Spacer(1, 0.8*cm))
-    elementos.append(Paragraph("Balance General", subtit_style))
+    elementos.append(Paragraph("Balance Final", subtit_style))
     bal_data = [
         ['Concepto', 'Importe'],
         ['Total Aportes', fmt(total_ap)],
         ['Total Egresos', fmt(total_eg)],
-        ['Saldo en Caja', fmt(abs(saldo))],
+        ['Saldo de Jornada', fmt(abs(saldo))],
     ]
     bal_tabla = Table(bal_data, colWidths=[8*cm, 4*cm])
     color_saldo_cel = colors.HexColor('#1a7a1a') if saldo >= 0 else colors.HexColor('#cc0000')
@@ -727,6 +747,49 @@ def caja_pdf_jornada():
 @app.route('/informes')
 def informes():
     return render_template('informes.html')
+
+@app.route('/api/mensualidades/<int:jugador_id>/<int:anio>')
+def api_mensualidades(jugador_id, anio):
+    """Devuelve el estado de pago de mensualidades de un jugador en un año."""
+    import re
+    tipo_m = TipoAporte.query.filter_by(descripcion='Mensualidad').first()
+    if not tipo_m:
+        return jsonify({'meses': {}, 'siguiente': 1})
+
+    aportes = Aporte.query.filter_by(idJugador=jugador_id, codTipoAporte=tipo_m.idTipoAporte).all()
+
+    VALOR_MES = 20000
+    meses = {}   # {mes_int: importe_acumulado}
+
+    for a in aportes:
+        # Intentar extraer mes destino del campo descripcion
+        m = re.match(r'^mes:(\d{4})-(\d{2})$', a.descripcion or '')
+        if m and int(m.group(1)) == anio:
+            mes = int(m.group(2))
+        elif not m:
+            # Fallback: usar mes de fechaAporte solo si es del año solicitado
+            if a.fechaAporte.year == anio:
+                mes = a.fechaAporte.month
+            else:
+                continue
+        else:
+            continue
+        meses[mes] = meses.get(mes, 0) + int(a.importe)
+
+    resultado = {}
+    for mes, total in meses.items():
+        resultado[mes] = {'pagado': total, 'completo': total >= VALOR_MES}
+
+    # Siguiente mes sin pago completo
+    siguiente = 1
+    for mes in range(1, 13):
+        if resultado.get(mes, {}).get('completo', False):
+            siguiente = mes + 1
+        else:
+            siguiente = mes
+            break
+
+    return jsonify({'meses': resultado, 'siguiente': min(siguiente, 12)})
 
 def _pdf_informe(lista_ap, lista_eg, titulo, subtitulo):
     """Genera PDF de resumen aportes/egresos/balance para cualquier conjunto de registros."""
@@ -785,7 +848,11 @@ def _pdf_informe(lista_ap, lista_eg, titulo, subtitulo):
         ]))
         return t
 
+    anio_actual = datetime.now().year
+    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=9,
+                                 alignment=TA_CENTER, textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
     elementos = []
+    elementos.append(Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style))
     elementos.append(Paragraph(titulo, titulo_style))
     elementos.append(Paragraph(subtitulo, ParagraphStyle('sub2', parent=styles['Normal'],
                                 fontSize=11, alignment=TA_CENTER, spaceAfter=10)))
@@ -863,6 +930,138 @@ def informes_pdf_general():
     buf = _pdf_informe(lista_ap, lista_eg, "Resumen General", "Todos los registros")
     return Response(buf, mimetype='application/pdf',
                     headers={'Content-Disposition': 'inline; filename="informe_general.pdf"'})
+
+@app.route('/informes/pdf/mensualidades')
+def informes_pdf_mensualidades():
+    from sqlalchemy import extract
+    anio = request.args.get('anio', datetime.now().year, type=int)
+
+    tipo_m = TipoAporte.query.filter_by(descripcion='Mensualidad').first()
+    if not tipo_m:
+        return "Tipo 'Mensualidad' no encontrado", 400
+
+    aportes = (Aporte.query
+               .filter(Aporte.codTipoAporte == tipo_m.idTipoAporte,
+                       extract('year', Aporte.fechaAporte) == anio)
+               .all())
+
+    # Construir dict: {jugador_id: {mes: total}}
+    jugadores_all = (Jugador.query
+                     .filter(Jugador.codJugador != 9999)
+                     .order_by(Jugador.apellidoJugador.asc(), Jugador.nombreJugador.asc())
+                     .all())
+    jug_map = {j.id: j for j in jugadores_all}
+
+    import re as _re
+    VALOR_MES = 20000
+
+    # Construir pagos por mes usando descripcion "mes:YYYY-MM" si existe, sino fechaAporte.month
+    pagos_mes = {}  # {jugador_id: {mes_int: importe}}
+    for a in aportes:
+        jid = a.idJugador
+        m = _re.match(r'^mes:(\d{4})-(\d{2})$', a.descripcion or '')
+        if m:
+            mes = int(m.group(2))
+        else:
+            mes = a.fechaAporte.month
+        pagos_mes.setdefault(jid, {})
+        pagos_mes[jid][mes] = pagos_mes[jid].get(mes, 0) + int(a.importe)
+
+    # Total por jugador (para distribuir meses completos)
+    totales_jug = {jid: sum(v.values()) for jid, v in pagos_mes.items()}
+
+    # Sólo incluir jugadores con al menos 1 pago en el año
+    jug_con_pago = [j for j in jugadores_all if j.id in totales_jug]
+
+    def fmt(n): return f"{n:,.0f}".replace(',', '.') if n else '-'
+
+    from reportlab.lib.pagesizes import landscape
+    MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
+                            leftMargin=1.5*cm, rightMargin=1.5*cm,
+                            topMargin=1.8*cm, bottomMargin=1.5*cm)
+    styles = getSampleStyleSheet()
+    titulo_style = ParagraphStyle('tit', parent=styles['Title'], fontSize=14,
+                                  alignment=TA_CENTER, spaceAfter=4)
+    sub_style    = ParagraphStyle('sub', parent=styles['Normal'], fontSize=10,
+                                  alignment=TA_CENTER, spaceAfter=12)
+
+    col_nombre = 5.8*cm
+    col_mes    = 1.62*cm
+    col_total  = 2.0*cm
+    col_widths = [col_nombre] + [col_mes]*12 + [col_total]
+
+    header = ['Jugador'] + MESES_CORTOS + ['Total']
+    data   = [header]
+
+    totales_mes = {m: 0 for m in range(1, 13)}
+    total_gral  = 0
+
+    for j in jug_con_pago:
+        mp = pagos_mes.get(j.id, {})
+        fila = [f"{j.apellidoJugador} {j.nombreJugador}"]
+        total_jug = 0
+        for mes in range(1, 13):
+            v = mp.get(mes, 0)
+            fila.append(fmt(v))
+            totales_mes[mes] += v
+            total_jug += v
+        fila.append(fmt(total_jug))
+        total_gral += total_jug
+        data.append(fila)
+
+    # Fila totales
+    fila_tot = ['TOTAL']
+    for mes in range(1, 13):
+        fila_tot.append(fmt(totales_mes[mes]))
+    fila_tot.append(fmt(total_gral))
+    data.append(fila_tot)
+
+    COLOR_HDR  = colors.HexColor('#2c5f8a')
+    COLOR_ALT  = colors.HexColor('#f0f4f8')
+    COLOR_TOT  = colors.HexColor('#dce8f0')
+
+    tabla = Table(data, colWidths=col_widths, repeatRows=1)
+    n     = len(data)
+    tabla.setStyle(TableStyle([
+        # Header
+        ('BACKGROUND',    (0,0),  (-1,0),  COLOR_HDR),
+        ('TEXTCOLOR',     (0,0),  (-1,0),  colors.white),
+        ('FONTNAME',      (0,0),  (-1,0),  'Helvetica-Bold'),
+        ('FONTSIZE',      (0,0),  (-1,0),  8),
+        ('ALIGN',         (0,0),  (0,0),   'LEFT'),
+        ('ALIGN',         (1,0),  (-1,0),  'CENTER'),
+        # Datos
+        ('FONTNAME',      (0,1),  (-1,n-2), 'Helvetica'),
+        ('FONTSIZE',      (0,1),  (-1,n-2), 7.5),
+        ('ALIGN',         (0,1),  (0,-1),  'LEFT'),
+        ('ALIGN',         (1,1),  (-1,-1), 'RIGHT'),
+        ('ROWBACKGROUNDS',(0,1),  (-1,n-2), [colors.white, COLOR_ALT]),
+        # Fila total
+        ('FONTNAME',      (0,-1), (-1,-1), 'Helvetica-Bold'),
+        ('FONTSIZE',      (0,-1), (-1,-1), 8),
+        ('BACKGROUND',    (0,-1), (-1,-1), COLOR_TOT),
+        # Grid
+        ('GRID',          (0,0),  (-1,-1), 0.3, colors.HexColor('#aaaaaa')),
+        ('TOPPADDING',    (0,0),  (-1,-1), 3),
+        ('BOTTOMPADDING', (0,0),  (-1,-1), 3),
+    ]))
+
+    anio_actual = datetime.now().year
+    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=9,
+                                 alignment=TA_CENTER, textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
+    elementos = [
+        Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style),
+        Paragraph(f"Progreso de Mensualidades {anio}", titulo_style),
+        Paragraph(f"Jugadores con pagos registrados: {len(jug_con_pago)}", sub_style),
+        tabla,
+    ]
+    doc.build(elementos)
+    buffer.seek(0)
+    return Response(buffer, mimetype='application/pdf',
+                    headers={'Content-Disposition': f'inline; filename="mensualidades_{anio}.pdf"'})
 
 @app.route('/about')
 def about():

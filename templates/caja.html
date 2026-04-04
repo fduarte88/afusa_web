@@ -57,7 +57,8 @@
 
     <!-- ===== TAB APORTES ===== -->
     <div class="tab-content" id="tab-aportes">
-        <form action="{{ url_for('aportes') }}" method="POST">
+        <form id="formAporte" action="{{ url_for('aportes') }}" method="POST">
+            <input type="hidden" id="mes_destino" name="mes_destino" value="">
 
             <div class="form-row">
                 <label for="fechaAporte">Fecha:</label>
@@ -80,10 +81,10 @@
             <div class="form-row">
                 <label for="tipo_aporte">Tipo de Aporte:</label>
                 <div class="field">
-                    <select id="tipo_aporte" name="tipo_aporte" class="form-control select-long" required onchange="autoImporte(this)">
+                    <select id="tipo_aporte" name="tipo_aporte" class="form-control select-long" required onchange="onTipoAporteChange(this)">
                         <option value="" disabled selected>Seleccione...</option>
                         {% for t in tipos_ap %}
-                        <option value="{{ t.idTipoAporte }}" data-valor="{{ t.valor }}">{{ t.descripcion }}</option>
+                        <option value="{{ t.idTipoAporte }}" data-valor="{{ t.valor }}" data-desc="{{ t.descripcion }}">{{ t.descripcion }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -93,12 +94,67 @@
                 <label for="importe_ap_display">Monto:</label>
                 <div class="field">
                     <input type="number" id="importe" name="importe" class="form-control" step="1" min="0" required>
+                    <span id="mens_badge" style="display:none; margin-left:8px; font-size:11px; padding:3px 8px;
+                          background:#6a3d8a; color:#fff; border-radius:4px; cursor:pointer;"
+                          onclick="abrirModalMensualidad()">📅 Mes: <span id="mens_badge_label"></span></span>
                 </div>
             </div><br>
 
             <button type="submit">Registrar Aporte</button>
             <button type="button" onclick="imprimirAportes()">Imprimir Aportes</button>
         </form>
+
+        <!-- Modal Mensualidad -->
+        <div id="modalMensualidad" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:3000;">
+            <div style="background:#fff; width:500px; margin:5rem auto; padding:24px; border-radius:8px; box-shadow:0 0 16px rgba(0,0,0,0.3);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                    <h3 style="margin:0; color:#6a3d8a;">Registrar Mensualidad</h3>
+                    <button type="button" onclick="cerrarModalMensualidad()" style="background:#ccc; border:none; border-radius:4px; padding:4px 10px; cursor:pointer;">✕</button>
+                </div>
+                <div id="mens_jugador_nombre" style="font-weight:bold; margin-bottom:12px; font-size:13px;"></div>
+
+                <!-- Selector de año -->
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+                    <label style="font-size:13px; font-weight:bold;">Año:</label>
+                    <select id="mens_anio" style="font-size:13px; padding:3px 8px;" onchange="cargarEstadoMensualidades()">
+                        <option value="2025">2025</option>
+                        <option value="2026" selected>2026</option>
+                        <option value="2027">2027</option>
+                    </select>
+                </div>
+
+                <!-- Grilla de meses -->
+                <div style="font-size:12px; color:#666; margin-bottom:8px;">Estado de pagos — verde: pagado, amarillo: parcial, gris: pendiente</div>
+                <div id="mens_grilla" style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:16px;"></div>
+
+                <!-- Mes seleccionado + monto -->
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+                    <label style="font-size:13px; font-weight:bold; width:80px;">Mes a pagar:</label>
+                    <select id="mens_mes_sel" style="font-size:13px; padding:3px 8px; flex:1;" onchange="onMesMensualidadChange()">
+                        <option value="">-- Seleccione --</option>
+                        <option value="1">Enero</option><option value="2">Febrero</option>
+                        <option value="3">Marzo</option><option value="4">Abril</option>
+                        <option value="5">Mayo</option><option value="6">Junio</option>
+                        <option value="7">Julio</option><option value="8">Agosto</option>
+                        <option value="9">Septiembre</option><option value="10">Octubre</option>
+                        <option value="11">Noviembre</option><option value="12">Diciembre</option>
+                    </select>
+                </div>
+                <div id="mens_info_mes" style="font-size:11px; color:#888; margin-bottom:10px; margin-left:92px;"></div>
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:18px;">
+                    <label style="font-size:13px; font-weight:bold; width:80px;">Monto:</label>
+                    <input type="number" id="mens_importe_input" step="1" min="1"
+                           style="font-size:13px; padding:4px 8px; width:130px;" placeholder="20000">
+                </div>
+
+                <div style="display:flex; gap:10px; justify-content:flex-end;">
+                    <button type="button" onclick="cerrarModalMensualidad()"
+                            style="padding:7px 16px; background:#aaa; color:#fff; border:none; border-radius:5px; cursor:pointer;">Cancelar</button>
+                    <button type="button" onclick="confirmarMensualidad()"
+                            style="padding:7px 20px; background:#6a3d8a; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Confirmar</button>
+                </div>
+            </div>
+        </div>
 
         <hr>
         <h2>Historial de Aportes</h2>
@@ -128,7 +184,7 @@
                     <td>{{ "{:,.0f}".format(a.importe).replace(",", ".") }}</td>
                     <td>{{ a.fecha }}</td>
                     <td>
-                        <button type="button" style="font-size:11px; padding:1px 6px;" onclick="abrirEditarAporte({{ a.id }}, '{{ a.fechaRaw }}', {{ a.codTipoAporte }}, {{ a.importe }})">Editar</button>
+                        <button type="button" style="font-size:11px; padding:1px 6px;" onclick="abrirEditarAporte({{ a.id }}, '{{ a.fechaRaw }}', {{ a.codTipoAporte }}, {{ a.importe }}, {{ a.idJugador }}, '{{ a.jugador|e }}')">Editar</button>
                         <a href="{{ url_for('delete_aporte', id=a.id) }}" onclick="return confirm('¿Eliminar este aporte?')" style="color:red; font-size:11px;">Eliminar</a>
                     </td>
                 </tr>
@@ -143,16 +199,17 @@
             <div style="background:#fff; width:420px; margin:8rem auto; padding:24px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.3);">
                 <h3 style="margin-top:0;">Editar Aporte</h3>
                 <form id="formEditarAporte" method="POST">
+                    <input type="hidden" id="ea_mes_destino" name="mes_destino" value="">
                     <div class="form-row">
                         <label>Fecha:</label>
-                        <div class="field"><input type="date" name="fechaAporte" id="ea_fecha" class="form-control" required></div>
+                        <div class="field"><input type="text" id="ea_fecha_picker" name="fechaAporte" class="form-control" style="width:130px;" readonly required></div>
                     </div>
                     <div class="form-row">
                         <label>Tipo de Aporte:</label>
                         <div class="field">
-                            <select name="tipo_aporte" id="ea_tipo" class="form-control select-long" required onchange="autoImporteEditar(this)">
+                            <select name="tipo_aporte" id="ea_tipo" class="form-control select-long" required onchange="onTipoAporteEditarChange(this)">
                                 {% for t in tipos_ap %}
-                                <option value="{{ t.idTipoAporte }}" data-valor="{{ t.valor }}">{{ t.descripcion }}</option>
+                                <option value="{{ t.idTipoAporte }}" data-valor="{{ t.valor }}" data-desc="{{ t.descripcion }}">{{ t.descripcion }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -160,8 +217,7 @@
                     <div class="form-row">
                         <label>Monto:</label>
                         <div class="field">
-                            <input type="text" id="ea_importe_display" class="form-control" readonly style="background:#f5f5f5;">
-                            <input type="hidden" name="importe" id="ea_importe">
+                            <input type="number" id="ea_importe_display" name="importe" class="form-control" step="1" min="0" required>
                         </div>
                     </div>
                     <br>
@@ -353,28 +409,75 @@
         switchTab(p === 'egresos' ? 'egresos' : 'aportes');
     })();
 
+    // --- Tipo aporte change (auto-importe + trigger mensualidad) ---
+    function onTipoAporteChange(select) {
+        autoImporte(select);
+        const desc = select.options[select.selectedIndex]?.getAttribute('data-desc') || '';
+        if (desc === 'Mensualidad') {
+            const jugadorId = document.getElementById('idJugador').value;
+            if (jugadorId) {
+                abrirModalMensualidad();
+            }
+        } else {
+            // Limpiar mes destino si cambia a otro tipo
+            document.getElementById('mes_destino').value = '';
+            document.getElementById('mens_badge').style.display = 'none';
+        }
+    }
+
     // --- Auto-importe Aportes (nuevo) ---
     function autoImporte(select) {
         const val = select.options[select.selectedIndex]?.getAttribute('data-valor');
         if (val) document.getElementById('importe').value = parseFloat(val);
     }
 
+    // --- Flatpickr modal editar aporte ---
+    const fpEaFecha = flatpickr('#ea_fecha_picker', {
+        locale: "es",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "d/m/Y",
+    });
+
     // --- Auto-importe Aportes (editar) ---
     function autoImporteEditar(select) {
         const val = select.options[select.selectedIndex]?.getAttribute('data-valor');
-        if (val) {
-            const num = parseFloat(val);
-            document.getElementById('ea_importe').value = num;
-            document.getElementById('ea_importe_display').value = num.toLocaleString('es-PY');
+        if (val) document.getElementById('ea_importe_display').value = parseFloat(val);
+    }
+
+    // --- Tipo aporte change en modal editar ---
+    function onTipoAporteEditarChange(select) {
+        autoImporteEditar(select);
+        const desc = select.options[select.selectedIndex]?.getAttribute('data-desc') || '';
+        if (desc === 'Mensualidad') {
+            // Redirigir la confirmación al modal editar
+            _mensContexto = 'editar';
+            const jugadorId = _editarJugadorId;
+            if (jugadorId) {
+                document.getElementById('mens_jugador_nombre').textContent = 'Jugador: ' + _editarJugadorNombre;
+                // Ocultar modal editar, mostrar modal mensualidad
+                document.getElementById('modalEditarAporte').style.display = 'none';
+                cargarEstadoMensualidadesConId(jugadorId);
+                document.getElementById('modalMensualidad').style.display = 'block';
+            }
+        } else {
+            document.getElementById('ea_mes_destino').value = '';
         }
     }
 
+    // Variables de contexto para saber desde dónde se llamó el modal mensualidad
+    let _mensContexto = 'nuevo';   // 'nuevo' | 'editar'
+    let _editarJugadorId   = null;
+    let _editarJugadorNombre = '';
+
     // --- Modal editar aporte ---
-    function abrirEditarAporte(id, fecha, tipoId, importe) {
+    function abrirEditarAporte(id, fecha, tipoId, importe, jugadorId, jugadorNombre) {
         document.getElementById('formEditarAporte').action = '/aportes/update/' + id;
-        document.getElementById('ea_fecha').value = fecha;
-        document.getElementById('ea_importe').value = importe;
-        document.getElementById('ea_importe_display').value = parseFloat(importe).toLocaleString('es-PY');
+        fpEaFecha.setDate(fecha, false);
+        document.getElementById('ea_importe_display').value = importe;
+        document.getElementById('ea_mes_destino').value = '';
+        _editarJugadorId   = jugadorId;
+        _editarJugadorNombre = jugadorNombre;
         const sel = document.getElementById('ea_tipo');
         for (let i = 0; i < sel.options.length; i++) {
             if (parseInt(sel.options[i].value) === tipoId) { sel.selectedIndex = i; break; }
@@ -513,6 +616,124 @@
 
     initFecha('fechaAporte_picker', '{{ fecha_ap }}', 'ap');
     initFecha('fechaEgreso_picker', '{{ fecha_eg }}', 'eg');
+
+    // =============================================
+    // --- Modal Mensualidad ---
+    // =============================================
+    const MESES_NOMBRES = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                           'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const VALOR_MES = 20000;
+    let _mensEstado = {};   // {mes: {pagado, completo}}
+    let _mensSiguiente = 1;
+
+    function abrirModalMensualidad() {
+        const jugadorId = document.getElementById('idJugador').value;
+        if (!jugadorId) { alert('Primero seleccioná un jugador.'); return; }
+        _mensContexto = 'nuevo';
+        const nombre = document.getElementById('nombre_jugador').value;
+        document.getElementById('mens_jugador_nombre').textContent = 'Jugador: ' + nombre;
+        cargarEstadoMensualidades();
+        document.getElementById('modalMensualidad').style.display = 'block';
+    }
+
+    function cargarEstadoMensualidadesConId(jugadorId) {
+        const anio = document.getElementById('mens_anio').value;
+        fetch(`/api/mensualidades/${jugadorId}/${anio}`)
+            .then(r => r.json())
+            .then(data => {
+                _mensEstado    = data.meses || {};
+                _mensSiguiente = data.siguiente || 1;
+                renderGrilla();
+                document.getElementById('mens_mes_sel').value = _mensSiguiente;
+                onMesMensualidadChange();
+            });
+    }
+
+    function cerrarModalMensualidad() {
+        document.getElementById('modalMensualidad').style.display = 'none';
+    }
+
+    function cargarEstadoMensualidades() {
+        const jugadorId = _mensContexto === 'editar'
+            ? _editarJugadorId
+            : document.getElementById('idJugador').value;
+        cargarEstadoMensualidadesConId(jugadorId);
+    }
+
+    function renderGrilla() {
+        const grilla = document.getElementById('mens_grilla');
+        grilla.innerHTML = '';
+        for (let mes = 1; mes <= 12; mes++) {
+            const info = _mensEstado[mes];
+            let bg = '#e0e0e0'; let color = '#555'; let label = '-';
+            if (info) {
+                if (info.completo) { bg = '#2a7a2a'; color = '#fff'; label = fmt_num(info.pagado); }
+                else               { bg = '#c8a800'; color = '#fff'; label = fmt_num(info.pagado); }
+            }
+            const isSig = (mes === _mensSiguiente && !info?.completo);
+            const border = isSig ? '2px solid #6a3d8a' : '1px solid #ccc';
+            const btn = document.createElement('div');
+            btn.style.cssText = `background:${bg}; color:${color}; border:${border}; border-radius:5px;
+                padding:6px 4px; text-align:center; cursor:pointer; font-size:11px; user-select:none;`;
+            btn.innerHTML = `<div style="font-weight:bold;">${MESES_NOMBRES[mes].substring(0,3)}</div><div>${label}</div>`;
+            btn.onclick = () => { document.getElementById('mens_mes_sel').value = mes; onMesMensualidadChange(); };
+            grilla.appendChild(btn);
+        }
+    }
+
+    function fmt_num(n) { return n ? n.toLocaleString('es-PY') : '-'; }
+
+    function onMesMensualidadChange() {
+        const mes = parseInt(document.getElementById('mens_mes_sel').value);
+        if (!mes) { document.getElementById('mens_info_mes').textContent = ''; return; }
+        const info = _mensEstado[mes];
+        const infoEl = document.getElementById('mens_info_mes');
+        const impEl  = document.getElementById('mens_importe_input');
+        if (info && info.completo) {
+            infoEl.textContent = `✓ Ya pagado: ${fmt_num(info.pagado)} Gs`;
+            infoEl.style.color = '#2a7a2a';
+            impEl.value = 0;
+        } else if (info && !info.completo) {
+            const resto = VALOR_MES - info.pagado;
+            infoEl.textContent = `Pago parcial: ${fmt_num(info.pagado)} Gs — resta ${fmt_num(resto)} Gs`;
+            infoEl.style.color = '#c8a800';
+            impEl.value = resto;
+        } else {
+            infoEl.textContent = 'Sin pagos registrados para este mes.';
+            infoEl.style.color = '#888';
+            impEl.value = VALOR_MES;
+        }
+    }
+
+    function confirmarMensualidad() {
+        const mes = parseInt(document.getElementById('mens_mes_sel').value);
+        const anio = document.getElementById('mens_anio').value;
+        const importe = parseInt(document.getElementById('mens_importe_input').value);
+        if (!mes) { alert('Seleccioná un mes.'); return; }
+        if (!importe || importe <= 0) { alert('Ingresá un monto válido.'); return; }
+
+        const mesStr = String(mes).padStart(2, '0');
+        const mesDestino = `${anio}-${mesStr}`;
+
+        if (_mensContexto === 'editar') {
+            document.getElementById('ea_mes_destino').value = mesDestino;
+            document.getElementById('ea_importe_display').value = importe;
+            cerrarModalMensualidad();
+            document.getElementById('modalEditarAporte').style.display = 'block';
+        } else {
+            document.getElementById('mes_destino').value = mesDestino;
+            document.getElementById('importe').value = importe;
+            document.getElementById('mens_badge_label').textContent = `${MESES_NOMBRES[mes]} ${anio}`;
+            document.getElementById('mens_badge').style.display = 'inline-block';
+            cerrarModalMensualidad();
+        }
+    }
+
+    // Limpiar mes_destino si cambia el jugador
+    document.getElementById('idJugador').addEventListener('change', function() {
+        document.getElementById('mes_destino').value = '';
+        document.getElementById('mens_badge').style.display = 'none';
+    });
 
     // --- Filtro historial por tipo de aporte ---
     function filtrarPorTipo() {
