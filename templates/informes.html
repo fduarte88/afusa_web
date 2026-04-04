@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es-PY">
+<head>
+    <meta charset="UTF-8">
+    <title>Informes Generales</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+    <style>
+        .informe-box {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 24px 28px;
+            margin-top: 24px;
+            max-width: 520px;
+            background: #fff;
+        }
+        .informe-box h2 {
+            margin-top: 0;
+            font-size: 15px;
+            color: #2c5f8a;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 8px;
+            margin-bottom: 16px;
+        }
+        .informe-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .informe-row label {
+            width: 100px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .informe-row input {
+            width: 130px;
+            font-size: 13px;
+        }
+        .btn-informe {
+            padding: 9px 20px;
+            background: #2c5f8a;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .btn-informe:hover { background: #1e4a6e; }
+        .btn-informe.verde { background: #2a7a2a; }
+        .btn-informe.verde:hover { background: #1e5c1e; }
+        .sep { margin: 28px 0 0 0; border: none; border-top: 1px solid #e0e0e0; }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <ul>
+            <li><a href="{{ url_for('index') }}">Home</a></li>
+            <li><a href="{{ url_for('index') }}">Jugadores</a></li>
+            <li class="dropdown">
+                <a href="#">Operaciones ▾</a>
+                <ul class="submenu">
+                    <li><a href="{{ url_for('caja') }}">Registros de Caja</a></li>
+                    <li><a href="{{ url_for('informes') }}">Informes Generales</a></li>
+                </ul>
+            </li>
+            <li><a href="{{ url_for('about') }}">Acerca de</a></li>
+        </ul>
+    </nav>
+
+    <div style="margin: 30px;">
+        <h1>Informes Generales</h1>
+
+        <!-- Informe del período -->
+        <div class="informe-box">
+            <h2>Informe del Período</h2>
+            <p style="font-size:12px; color:#666; margin-top:-8px; margin-bottom:16px;">
+                Muestra el resumen de aportes y egresos en el rango de fechas seleccionado.
+            </p>
+            <div class="informe-row">
+                <label>Fecha desde:</label>
+                <input type="text" id="fecha_desde" placeholder="DD/MM/AAAA" readonly>
+            </div>
+            <div class="informe-row">
+                <label>Fecha hasta:</label>
+                <input type="text" id="fecha_hasta" placeholder="DD/MM/AAAA" readonly>
+            </div>
+            <div style="margin-top:18px;">
+                <button class="btn-informe" onclick="generarPeriodo()">Resumen del Período</button>
+            </div>
+        </div>
+
+        <hr class="sep">
+
+        <!-- Resumen general -->
+        <div class="informe-box" style="margin-top:20px;">
+            <h2>Resumen General</h2>
+            <p style="font-size:12px; color:#666; margin-top:-8px; margin-bottom:16px;">
+                Muestra el total acumulado de aportes y egresos de todos los registros.
+            </p>
+            <div style="margin-top:8px;">
+                <button class="btn-informe verde" onclick="generarGeneral()">Resumen General</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const fpDesde = flatpickr('#fecha_desde', {
+            locale: "es",
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "d/m/Y",
+        });
+        const fpHasta = flatpickr('#fecha_hasta', {
+            locale: "es",
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "d/m/Y",
+        });
+
+        function generarPeriodo() {
+            const desde = document.getElementById('fecha_desde').value;
+            const hasta = document.getElementById('fecha_hasta').value;
+            if (!desde || !hasta) {
+                alert('Seleccioná las fechas desde y hasta.');
+                return;
+            }
+            if (desde > hasta) {
+                alert('La fecha "desde" debe ser anterior o igual a "hasta".');
+                return;
+            }
+            window.open('/informes/pdf/periodo?desde=' + desde + '&hasta=' + hasta, '_blank');
+        }
+
+        function generarGeneral() {
+            window.open('/informes/pdf/general', '_blank');
+        }
+    </script>
+</body>
+</html>

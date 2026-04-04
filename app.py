@@ -232,7 +232,7 @@ def caja():
             "jugador": f"{a.jugador.nombreJugador} {a.jugador.apellidoJugador}",
             "tipo": a.tipo_aporte.descripcion if a.tipo_aporte else '',
             "importe": a.importe,
-            "fecha": fmt_fecha(a.fechaAporte),
+            "fecha": a.fechaAporte.strftime("%d/%m/%Y"),
             "fechaRaw": a.fechaAporte.strftime("%Y-%m-%d"),
             "codTipoAporte": a.codTipoAporte,
         })
@@ -245,7 +245,7 @@ def caja():
             "codTipoEgreso": e.codTipoEgreso,
             "descripcion": e.descripcion,
             "importe": e.importe,
-            "fecha": fmt_fecha(e.fechaEgreso),
+            "fecha": e.fechaEgreso.strftime("%d/%m/%Y"),
             "fechaRaw": e.fechaEgreso.strftime("%Y-%m-%d"),
         })
 
@@ -412,7 +412,8 @@ def egresos():
         )
         db.session.add(nuevo)
         db.session.commit()
-        return redirect(url_for('caja') + '?tab=egresos')
+        fecha_str = fecha.strftime("%Y-%m-%d")
+        return redirect(url_for('caja') + f'?tab=egresos&fecha_eg={fecha_str}')
 
     lista = Egreso.query.order_by(Egreso.fechaEgreso.desc(), Egreso.id.desc()).all()
     meses = ['enero','febrero','marzo','abril','mayo','junio',
@@ -456,9 +457,10 @@ def delete_tipo_egreso(id):
 @app.route('/egresos/delete/<int:id>')
 def delete_egreso(id):
     egreso = Egreso.query.get_or_404(id)
+    fecha_str = egreso.fechaEgreso.strftime("%Y-%m-%d")
     db.session.delete(egreso)
     db.session.commit()
-    return redirect(url_for('caja') + '?tab=egresos')
+    return redirect(url_for('caja') + f'?tab=egresos&fecha_eg={fecha_str}')
 
 @app.route('/egresos/update/<int:id>', methods=['POST'])
 def update_egreso(id):
@@ -470,7 +472,8 @@ def update_egreso(id):
     egreso.descripcion   = request.form.get('descripcion', '').strip() or (tipo.descripcion if tipo else '')
     egreso.importe       = request.form.get('importe')
     db.session.commit()
-    return redirect(url_for('caja') + '?tab=egresos')
+    fecha_str = egreso.fechaEgreso.strftime("%Y-%m-%d")
+    return redirect(url_for('caja') + f'?tab=egresos&fecha_eg={fecha_str}')
 
 @app.route('/egresos/pdf')
 def egresos_pdf():
@@ -720,6 +723,146 @@ def caja_pdf_jornada():
     buffer.seek(0)
     return Response(buffer, mimetype='application/pdf',
                     headers={'Content-Disposition': f'inline; filename="jornada_{fecha_str}.pdf"'})
+
+@app.route('/informes')
+def informes():
+    return render_template('informes.html')
+
+def _pdf_informe(lista_ap, lista_eg, titulo, subtitulo):
+    """Genera PDF de resumen aportes/egresos/balance para cualquier conjunto de registros."""
+    def fmt(n): return f"{n:,.0f}".replace(',', '.')
+
+    total_ap = sum(int(a.importe) for a in lista_ap)
+    total_eg = sum(int(e.importe) for e in lista_eg)
+    saldo    = total_ap - total_eg
+
+    res_ap, cnt_ap = {}, {}
+    for a in lista_ap:
+        t = a.tipo_aporte.descripcion if a.tipo_aporte else 'Sin tipo'
+        res_ap[t] = res_ap.get(t, 0) + int(a.importe)
+        cnt_ap[t] = cnt_ap.get(t, 0) + 1
+
+    res_eg, cnt_eg = {}, {}
+    for e in lista_eg:
+        t = e.tipo_egreso.descripcion if e.tipo_egreso else 'Sin tipo'
+        res_eg[t] = res_eg.get(t, 0) + int(e.importe)
+        cnt_eg[t] = cnt_eg.get(t, 0) + 1
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                            leftMargin=2*cm, rightMargin=2*cm,
+                            topMargin=2*cm, bottomMargin=2*cm)
+    styles = getSampleStyleSheet()
+    titulo_style = ParagraphStyle('tit', parent=styles['Title'],  fontSize=15, alignment=TA_CENTER, spaceAfter=4)
+    subtit_style = ParagraphStyle('sub', parent=styles['Heading2'], fontSize=11, spaceBefore=14, spaceAfter=5)
+    msg_style    = ParagraphStyle('msg', parent=styles['Normal'],  fontSize=10, spaceAfter=6)
+
+    COLOR_AP     = colors.HexColor('#2c5f8a')
+    COLOR_EG     = colors.HexColor('#8a2c2c')
+    COLOR_BG_AP  = colors.HexColor('#f0f4f8')
+    COLOR_BG_EG  = colors.HexColor('#f8f0f0')
+    COLOR_TOT_AP = colors.HexColor('#dce8f0')
+    COLOR_TOT_EG = colors.HexColor('#f0dcdc')
+
+    def make_resumen(resumen, conteo, total, color_header, color_alt, color_total):
+        data = [['Tipo', 'Cantidad', 'Total']]
+        for tipo, subtotal in sorted(resumen.items()):
+            data.append([tipo, str(conteo[tipo]), fmt(subtotal)])
+        data.append(['TOTAL', str(sum(conteo.values())), fmt(total)])
+        t = Table(data, colWidths=[7*cm, 2.5*cm, 3*cm])
+        t.setStyle(TableStyle([
+            ('BACKGROUND',    (0,0), (-1,0), color_header),
+            ('TEXTCOLOR',     (0,0), (-1,0), colors.white),
+            ('FONTNAME',      (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE',      (0,0), (-1,-1), 9),
+            ('ALIGN',         (1,0), (-1,-1), 'RIGHT'),
+            ('ROWBACKGROUNDS',(0,1), (-1,-2), [colors.white, color_alt]),
+            ('FONTNAME',      (0,-1), (-1,-1), 'Helvetica-Bold'),
+            ('BACKGROUND',    (0,-1), (-1,-1), color_total),
+            ('GRID',          (0,0), (-1,-1), 0.4, colors.HexColor('#aaaaaa')),
+            ('TOPPADDING',    (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ]))
+        return t
+
+    elementos = []
+    elementos.append(Paragraph(titulo, titulo_style))
+    elementos.append(Paragraph(subtitulo, ParagraphStyle('sub2', parent=styles['Normal'],
+                                fontSize=11, alignment=TA_CENTER, spaceAfter=10)))
+    elementos.append(Spacer(1, 0.3*cm))
+
+    elementos.append(Paragraph("Resumen de Aportes", subtit_style))
+    if not lista_ap:
+        elementos.append(Paragraph("Sin aportes en el período.", msg_style))
+    else:
+        elementos.append(make_resumen(res_ap, cnt_ap, total_ap, COLOR_AP, COLOR_BG_AP, COLOR_TOT_AP))
+
+    elementos.append(Paragraph("Resumen de Egresos", subtit_style))
+    if not lista_eg:
+        elementos.append(Paragraph("Sin egresos en el período.", msg_style))
+    else:
+        elementos.append(make_resumen(res_eg, cnt_eg, total_eg, COLOR_EG, COLOR_BG_EG, COLOR_TOT_EG))
+
+    elementos.append(Spacer(1, 0.8*cm))
+    elementos.append(Paragraph("Balance General", subtit_style))
+    bal_data = [
+        ['Concepto', 'Importe'],
+        ['Total Aportes', fmt(total_ap)],
+        ['Total Egresos', fmt(total_eg)],
+        ['Saldo en Caja', fmt(abs(saldo))],
+    ]
+    color_saldo = colors.HexColor('#1a7a1a') if saldo >= 0 else colors.HexColor('#cc0000')
+    bal_tabla = Table(bal_data, colWidths=[8*cm, 4*cm])
+    bal_tabla.setStyle(TableStyle([
+        ('BACKGROUND',    (0,0), (-1,0), colors.HexColor('#444444')),
+        ('TEXTCOLOR',     (0,0), (-1,0), colors.white),
+        ('FONTNAME',      (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE',      (0,0), (-1,-1), 11),
+        ('ALIGN',         (1,0), (1,-1), 'RIGHT'),
+        ('FONTNAME',      (0,1), (-1,-2), 'Helvetica'),
+        ('ROWBACKGROUNDS',(0,1), (-1,-2), [colors.white, colors.HexColor('#f5f5f5')]),
+        ('FONTNAME',      (0,-1), (-1,-1), 'Helvetica-Bold'),
+        ('BACKGROUND',    (0,-1), (-1,-1), color_saldo),
+        ('TEXTCOLOR',     (0,-1), (-1,-1), colors.white),
+        ('GRID',          (0,0), (-1,-1), 0.4, colors.HexColor('#aaaaaa')),
+        ('TOPPADDING',    (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+    ]))
+    elementos.append(bal_tabla)
+
+    doc.build(elementos)
+    buffer.seek(0)
+    return buffer
+
+@app.route('/informes/pdf/periodo')
+def informes_pdf_periodo():
+    desde_str = request.args.get('desde', '')
+    hasta_str = request.args.get('hasta', '')
+    try:
+        desde = datetime.strptime(desde_str, "%Y-%m-%d").date()
+        hasta = datetime.strptime(hasta_str, "%Y-%m-%d").date()
+    except ValueError:
+        return "Fechas inválidas", 400
+
+    meses = ['enero','febrero','marzo','abril','mayo','junio',
+             'julio','agosto','septiembre','octubre','noviembre','diciembre']
+    subtitulo = (f"{desde.day} de {meses[desde.month-1]} de {desde.year}"
+                 f" — {hasta.day} de {meses[hasta.month-1]} de {hasta.year}")
+
+    lista_ap = Aporte.query.filter(Aporte.fechaAporte >= desde, Aporte.fechaAporte <= hasta).all()
+    lista_eg = Egreso.query.filter(Egreso.fechaEgreso >= desde, Egreso.fechaEgreso <= hasta).all()
+
+    buf = _pdf_informe(lista_ap, lista_eg, "Informe del Período", subtitulo)
+    return Response(buf, mimetype='application/pdf',
+                    headers={'Content-Disposition': f'inline; filename="informe_periodo_{desde_str}_{hasta_str}.pdf"'})
+
+@app.route('/informes/pdf/general')
+def informes_pdf_general():
+    lista_ap = Aporte.query.all()
+    lista_eg = Egreso.query.all()
+    buf = _pdf_informe(lista_ap, lista_eg, "Resumen General", "Todos los registros")
+    return Response(buf, mimetype='application/pdf',
+                    headers={'Content-Disposition': 'inline; filename="informe_general.pdf"'})
 
 @app.route('/about')
 def about():

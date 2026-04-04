@@ -1,9 +1,12 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es-PY">
 <head>
     <meta charset="UTF-8">
     <title>Registros de Caja</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
     <style>
         .tabs { display:flex; gap:0; margin-bottom:0; margin-top:20px; }
         .tab-btn {
@@ -34,6 +37,7 @@
                 <a href="#">Operaciones ▾</a>
                 <ul class="submenu">
                     <li><a href="{{ url_for('caja') }}">Registros de Caja</a></li>
+                    <li><a href="{{ url_for('informes') }}">Informes Generales</a></li>
                 </ul>
             </li>
             <li><a href="{{ url_for('about') }}">Acerca de</a></li>
@@ -58,8 +62,8 @@
             <div class="form-row">
                 <label for="fechaAporte">Fecha:</label>
                 <div class="field">
-                    <input type="date" id="fechaAporte" name="fechaAporte" class="form-control" required
-                        value="{{ fecha_ap }}" onchange="filtrarPorFecha('ap', this.value)">
+                    <input type="text" id="fechaAporte_picker" name="fechaAporte" class="form-control"
+                        value="{{ fecha_ap }}" placeholder="DD/MM/AAAA" style="width:130px;" readonly>
                 </div>
             </div>
 
@@ -98,13 +102,26 @@
 
         <hr>
         <h2>Historial de Aportes</h2>
-        <table border="1" cellpadding="2" cellspacing="0" style="font-size:12px; line-height:1.3;">
+
+        <!-- Filtro por tipo -->
+        <div id="filtroTipos" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:8px; font-size:12px;">
+            {% for t in tipos_ap %}
+            <label style="display:flex; align-items:center; gap:4px; cursor:pointer; user-select:none;">
+                <input type="checkbox" class="chk-tipo" value="{{ t.descripcion }}" checked
+                       onchange="filtrarPorTipo()"
+                       style="width:14px; height:14px; cursor:pointer;">
+                {{ t.descripcion }}
+            </label>
+            {% endfor %}
+        </div>
+
+        <table id="tablaHistorialAportes" border="1" cellpadding="2" cellspacing="0" style="font-size:12px; line-height:1.3;">
             <thead>
                 <tr><th>ID</th><th>Jugador</th><th>Tipo</th><th>Importe</th><th>Fecha</th><th>Acciones</th></tr>
             </thead>
             <tbody>
                 {% for a in aportes|sort(attribute='jugador') %}
-                <tr>
+                <tr data-tipo="{{ a.tipo }}">
                     <td>{{ a.codJugador }}</td>
                     <td>{{ a.jugador }}</td>
                     <td>{{ a.tipo }}</td>
@@ -162,8 +179,8 @@
             <div class="form-row">
                 <label for="fechaEgreso">Fecha:</label>
                 <div class="field">
-                    <input type="date" id="fechaEgreso" name="fechaEgreso" class="form-control" required
-                        value="{{ fecha_eg }}" onchange="filtrarPorFecha('eg', this.value)">
+                    <input type="text" id="fechaEgreso_picker" name="fechaEgreso" class="form-control"
+                        value="{{ fecha_eg }}" placeholder="DD/MM/AAAA" style="width:130px;" readonly>
                 </div>
             </div>
 
@@ -257,7 +274,7 @@
                 <form id="formEditarEgreso" method="POST">
                     <div class="form-row">
                         <label>Fecha:</label>
-                        <div class="field"><input type="date" name="fechaEgreso" id="ee_fecha" class="form-control" required></div>
+                        <div class="field"><input type="text" id="ee_fecha_picker" name="fechaEgreso" class="form-control" style="width:130px;" readonly required></div>
                     </div>
                     <div class="form-row">
                         <label>Tipo de Egreso:</label>
@@ -365,10 +382,18 @@
         document.getElementById('modalEditarAporte').style.display = 'block';
     }
 
+    // --- Flatpickr modal editar egreso ---
+    const fpEeFecha = flatpickr('#ee_fecha_picker', {
+        locale: "es",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "d/m/Y",
+    });
+
     // --- Modal editar egreso ---
     function abrirEditarEgreso(id, fecha, tipoId, importe, desc) {
         document.getElementById('formEditarEgreso').action = '/egresos/update/' + id;
-        document.getElementById('ee_fecha').value = fecha;
+        fpEeFecha.setDate(fecha, false);
         document.getElementById('ee_importe').value = importe;
         document.getElementById('ee_desc').value = desc;
         const sel = document.getElementById('ee_tipo');
@@ -449,31 +474,60 @@
 
     // --- PDF Aportes ---
     function imprimirAportes() {
-        const fecha = document.getElementById('fechaAporte').value;
+        const fecha = document.getElementById('fechaAporte_picker').value;
         if (!fecha) { alert('Seleccioná una fecha primero.'); return; }
         window.open('/aportes/pdf?fecha=' + fecha, '_blank');
     }
 
     // --- PDF Egresos ---
     function imprimirEgresos() {
-        const fecha = document.getElementById('fechaEgreso').value;
+        const fecha = document.getElementById('fechaEgreso_picker').value;
         if (!fecha) { alert('Seleccioná una fecha primero.'); return; }
         window.open('/egresos/pdf?fecha=' + fecha, '_blank');
     }
 
-    // --- Filtrar historial por fecha ---
+    // --- Flatpickr fechas ---
     function filtrarPorFecha(tab, fecha) {
+        if (!fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return;
         const params = new URLSearchParams(window.location.search);
         params.set('tab', tab === 'ap' ? 'aportes' : 'egresos');
         params.set(tab === 'ap' ? 'fecha_ap' : 'fecha_eg', fecha);
         window.location.href = '/caja?' + params.toString();
     }
 
+    function initFecha(id, defaultDate, tab) {
+        flatpickr('#' + id, {
+            locale: "es",
+            dateFormat: "Y-m-d",       // valor enviado al form (YYYY-MM-DD)
+            altInput: true,             // campo visual separado
+            altFormat: "d/m/Y",        // muestra DD/MM/AAAA
+            defaultDate: defaultDate,
+            onChange: function(selectedDates) {
+                if (!selectedDates.length) return;
+                const d = selectedDates[0];
+                const iso = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+                filtrarPorFecha(tab, iso);
+            }
+        });
+    }
+
+    initFecha('fechaAporte_picker', '{{ fecha_ap }}', 'ap');
+    initFecha('fechaEgreso_picker', '{{ fecha_eg }}', 'eg');
+
+    // --- Filtro historial por tipo de aporte ---
+    function filtrarPorTipo() {
+        const activos = Array.from(document.querySelectorAll('.chk-tipo:checked')).map(c => c.value);
+        document.querySelectorAll('#tablaHistorialAportes tbody tr').forEach(function(fila) {
+            const tipo = fila.getAttribute('data-tipo');
+            fila.style.display = (!tipo || activos.includes(tipo)) ? '' : 'none';
+        });
+    }
+
     // --- PDF Resumen Jornada ---
     function imprimirJornada() {
         const tabActiva = document.querySelector('.tab-content.active').id === 'tab-aportes'
-            ? document.getElementById('fechaAporte').value
-            : document.getElementById('fechaEgreso').value;
+            ? document.getElementById('fechaAporte_picker').value
+            : document.getElementById('fechaEgreso_picker').value;
         if (!tabActiva) { alert('Seleccioná una fecha primero.'); return; }
         window.open('/caja/pdf/jornada?fecha=' + tabActiva, '_blank');
     }
