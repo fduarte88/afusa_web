@@ -89,8 +89,9 @@
                 <label>Fecha hasta:</label>
                 <input type="text" id="fecha_hasta" placeholder="DD/MM/AAAA" readonly>
             </div>
-            <div style="margin-top:18px;">
+            <div style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap;">
                 <button class="btn-informe" onclick="generarPeriodo()">Resumen del Período</button>
+                <button class="btn-informe" style="background:#2a7a2a;" onclick="generarDetallePeriodo()">Detalle del Período</button>
             </div>
         </div>
 
@@ -110,8 +111,13 @@
                     <option value="2027">2027</option>
                 </select>
             </div>
-            <div style="margin-top:18px;">
+            <div class="informe-row" style="margin-top:14px;">
+                <label>Cód. Jugador:</label>
+                <input type="number" id="cod_jugador_detalle" placeholder="Todos" style="width:100px; font-size:13px; padding:3px 8px;">
+            </div>
+            <div style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap;">
                 <button class="btn-informe" style="background:#6a3d8a;" onclick="generarMensualidades()">Progreso Mensualidades</button>
+                <button class="btn-informe" style="background:#3d6a8a;" onclick="generarMensualidadesDetalle()">Detalle de Fechas</button>
             </div>
         </div>
 
@@ -143,18 +149,22 @@
             altFormat: "d/m/Y",
         });
 
-        function generarPeriodo() {
+        function _validarFechas() {
             const desde = document.getElementById('fecha_desde').value;
             const hasta = document.getElementById('fecha_hasta').value;
-            if (!desde || !hasta) {
-                alert('Seleccioná las fechas desde y hasta.');
-                return;
-            }
-            if (desde > hasta) {
-                alert('La fecha "desde" debe ser anterior o igual a "hasta".');
-                return;
-            }
-            window.open('/informes/pdf/periodo?desde=' + desde + '&hasta=' + hasta, '_blank');
+            if (!desde || !hasta) { alert('Seleccioná las fechas desde y hasta.'); return null; }
+            if (desde > hasta)    { alert('La fecha "desde" debe ser anterior o igual a "hasta".'); return null; }
+            return { desde, hasta };
+        }
+
+        function generarPeriodo() {
+            const f = _validarFechas(); if (!f) return;
+            window.open('/informes/pdf/periodo?desde=' + f.desde + '&hasta=' + f.hasta, '_blank');
+        }
+
+        function generarDetallePeriodo() {
+            const f = _validarFechas(); if (!f) return;
+            window.open('/informes/pdf/periodo/detalle?desde=' + f.desde + '&hasta=' + f.hasta, '_blank');
         }
 
         function generarGeneral() {
@@ -164,6 +174,14 @@
         function generarMensualidades() {
             const anio = document.getElementById('anio_mens').value;
             window.open('/informes/pdf/mensualidades?anio=' + anio, '_blank');
+        }
+
+        function generarMensualidadesDetalle() {
+            const anio = document.getElementById('anio_mens').value;
+            const cod  = document.getElementById('cod_jugador_detalle').value.trim();
+            let url = '/informes/pdf/mensualidades/detalle?anio=' + anio;
+            if (cod) url += '&cod=' + encodeURIComponent(cod);
+            window.open(url, '_blank');
         }
     </script>
 </body>

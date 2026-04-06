@@ -548,15 +548,32 @@
             inpCodigo.value = codigo;
             inpNombre.value = jug.nombre;
             hidId.value = jug.id;
+            seleccionarAporteJornada();
         }
         cerrarModal();
     });
+
+    function seleccionarAporteJornada() {
+        const sel = document.getElementById('tipo_aporte');
+        for (let i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].getAttribute('data-desc') === 'Aporte Jornada') {
+                sel.selectedIndex = i;
+                autoImporte(sel);
+                break;
+            }
+        }
+    }
 
     function syncDesdeCodigo() {
         const val = inpCodigo.value.trim();
         if (!val) { hidId.value = ''; inpNombre.value = ''; return false; }
         const jug = JUGADORES.find(j => j.codigo === val);
-        if (jug) { hidId.value = jug.id; inpNombre.value = jug.nombre; return true; }
+        if (jug) {
+            hidId.value = jug.id;
+            inpNombre.value = jug.nombre;
+            seleccionarAporteJornada();
+            return true;
+        }
         hidId.value = ''; inpNombre.value = ''; return false;
     }
 

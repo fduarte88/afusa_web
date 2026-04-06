@@ -323,81 +323,70 @@ def aportes_pdf():
     if not aportes:
         elementos.append(Paragraph(f"No hay registros en la fecha seleccionada.", msg_style))
     else:
-        data = [['Nombre y Apellido', 'Tipo de Aporte', 'Valor', 'Fecha']]
-        total = 0
-        for a in aportes:
-            jugador = f"{a.jugador.nombreJugador} {a.jugador.apellidoJugador}"
-            tipo = a.tipo_aporte.descripcion if a.tipo_aporte else ''
-            importe = int(a.importe)
-            total += importe
-            importe_fmt = f"{importe:,.0f}".replace(',', '.')
-            data.append([jugador, tipo, importe_fmt, a.fechaAporte.strftime("%d/%m/%Y")])
-
-        total_fmt = f"{total:,.0f}".replace(',', '.')
-        data.append(['', 'TOTAL', total_fmt, ''])
-
-        col_widths = [7*cm, 4.5*cm, 3*cm, 3*cm]
-        tabla = Table(data, colWidths=col_widths, repeatRows=1)
-        tabla.setStyle(TableStyle([
-            ('BACKGROUND',   (0,0), (-1,0), colors.HexColor('#2c5f8a')),
-            ('TEXTCOLOR',    (0,0), (-1,0), colors.white),
-            ('FONTNAME',     (0,0), (-1,0), 'Helvetica-Bold'),
-            ('FONTSIZE',     (0,0), (-1,0), 10),
-            ('ALIGN',        (2,0), (2,-1), 'RIGHT'),
-            ('ALIGN',        (3,0), (3,-1), 'CENTER'),
-            ('FONTNAME',     (0,1), (-1,-2), 'Helvetica'),
-            ('FONTSIZE',     (0,1), (-1,-2), 9),
-            ('ROWBACKGROUNDS', (0,1), (-1,-2), [colors.white, colors.HexColor('#f0f4f8')]),
-            ('FONTNAME',     (0,-1), (-1,-1), 'Helvetica-Bold'),
-            ('BACKGROUND',   (0,-1), (-1,-1), colors.HexColor('#dce8f0')),
-            ('GRID',         (0,0), (-1,-1), 0.5, colors.HexColor('#aaaaaa')),
-            ('TOPPADDING',   (0,0), (-1,-1), 5),
-            ('BOTTOMPADDING',(0,0), (-1,-1), 5),
-        ]))
-        elementos.append(tabla)
-
-        # Resumen por tipo de aporte
-        elementos.append(Spacer(1, 0.8*cm))
         subtitulo_style = ParagraphStyle('subtitulo', parent=styles['Heading2'],
-                                         fontSize=11, spaceAfter=6)
-        elementos.append(Paragraph("Resumen por Tipo de Aporte", subtitulo_style))
+                                         fontSize=11, spaceBefore=14, spaceAfter=5)
+        col_widths = [8*cm, 3.5*cm, 3*cm]
 
-        resumen = {}
+        def make_tabla_tipo(filas, subtotal):
+            data = [['Nombre y Apellido', 'Importe', 'Fecha']]
+            for nombre, importe, fecha_str in filas:
+                data.append([nombre, f"{importe:,.0f}".replace(',','.'), fecha_str])
+            data.append(['SUBTOTAL', f"{subtotal:,.0f}".replace(',','.'), ''])
+            t = Table(data, colWidths=col_widths, repeatRows=1)
+            t.setStyle(TableStyle([
+                ('BACKGROUND',    (0,0), (-1,0), colors.HexColor('#2c5f8a')),
+                ('TEXTCOLOR',     (0,0), (-1,0), colors.white),
+                ('FONTNAME',      (0,0), (-1,0), 'Helvetica-Bold'),
+                ('FONTSIZE',      (0,0), (-1,0), 9),
+                ('ALIGN',         (1,0), (1,-1), 'RIGHT'),
+                ('ALIGN',         (2,0), (2,-1), 'CENTER'),
+                ('FONTNAME',      (0,1), (-1,-2), 'Helvetica'),
+                ('FONTSIZE',      (0,1), (-1,-2), 9),
+                ('ROWBACKGROUNDS',(0,1), (-1,-2), [colors.white, colors.HexColor('#f0f4f8')]),
+                ('FONTNAME',      (0,-1), (-1,-1), 'Helvetica-Bold'),
+                ('BACKGROUND',    (0,-1), (-1,-1), colors.HexColor('#dce8f0')),
+                ('GRID',          (0,0), (-1,-1), 0.5, colors.HexColor('#aaaaaa')),
+                ('TOPPADDING',    (0,0), (-1,-1), 4),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+            ]))
+            return t
+
+        # Agrupar por tipo, ordenar: Aporte Jornada primero, luego el resto alfabéticamente
+        grupos = {}
         for a in aportes:
             tipo = a.tipo_aporte.descripcion if a.tipo_aporte else 'Sin tipo'
-            resumen[tipo] = resumen.get(tipo, 0) + int(a.importe)
+            grupos.setdefault(tipo, []).append(a)
 
-        res_data = [['Tipo de Aporte', 'Cantidad', 'Total']]
-        conteo = {}
-        for a in aportes:
-            tipo = a.tipo_aporte.descripcion if a.tipo_aporte else 'Sin tipo'
-            conteo[tipo] = conteo.get(tipo, 0) + 1
+        PRIMERO = 'Aporte Jornada'
+        tipos_ordenados = sorted(grupos.keys(), key=lambda t: (0 if t == PRIMERO else 1, t))
 
-        for tipo, subtotal in sorted(resumen.items()):
-            subtotal_fmt = f"{subtotal:,.0f}".replace(',', '.')
-            res_data.append([tipo, str(conteo[tipo]), subtotal_fmt])
+        total_general = 0
+        for tipo in tipos_ordenados:
+            lista = sorted(grupos[tipo],
+                           key=lambda a: (a.jugador.nombreJugador, a.jugador.apellidoJugador))
+            subtotal = sum(int(a.importe) for a in lista)
+            total_general += subtotal
+            filas = [(f"{a.jugador.nombreJugador} {a.jugador.apellidoJugador}",
+                      int(a.importe),
+                      a.fechaAporte.strftime("%d/%m/%Y")) for a in lista]
+            elementos.append(Paragraph(tipo, subtitulo_style))
+            elementos.append(make_tabla_tipo(filas, subtotal))
 
-        total_res_fmt = f"{total:,.0f}".replace(',', '.')
-        res_data.append(['TOTAL', str(len(aportes)), total_res_fmt])
-
-        res_col_widths = [7*cm, 3*cm, 3.5*cm]
-        tabla_res = Table(res_data, colWidths=res_col_widths)
-        tabla_res.setStyle(TableStyle([
-            ('BACKGROUND',    (0,0), (-1,0), colors.HexColor('#2c5f8a')),
-            ('TEXTCOLOR',     (0,0), (-1,0), colors.white),
-            ('FONTNAME',      (0,0), (-1,0), 'Helvetica-Bold'),
-            ('FONTSIZE',      (0,0), (-1,0), 10),
-            ('ALIGN',         (1,0), (-1,-1), 'RIGHT'),
-            ('FONTNAME',      (0,1), (-1,-2), 'Helvetica'),
-            ('FONTSIZE',      (0,1), (-1,-2), 9),
-            ('ROWBACKGROUNDS',(0,1), (-1,-2), [colors.white, colors.HexColor('#f0f4f8')]),
-            ('FONTNAME',      (0,-1), (-1,-1), 'Helvetica-Bold'),
-            ('BACKGROUND',    (0,-1), (-1,-1), colors.HexColor('#dce8f0')),
+        # Total general al pie
+        elementos.append(Spacer(1, 0.5*cm))
+        tot_data = [['TOTAL GENERAL', f"{total_general:,.0f}".replace(',','.')]]
+        tot_tabla = Table(tot_data, colWidths=[8*cm, 3.5*cm])
+        tot_tabla.setStyle(TableStyle([
+            ('BACKGROUND',    (0,0), (-1,-1), colors.HexColor('#1e4a6e')),
+            ('TEXTCOLOR',     (0,0), (-1,-1), colors.white),
+            ('FONTNAME',      (0,0), (-1,-1), 'Helvetica-Bold'),
+            ('FONTSIZE',      (0,0), (-1,-1), 11),
+            ('ALIGN',         (1,0), (1,-1), 'RIGHT'),
+            ('TOPPADDING',    (0,0), (-1,-1), 6),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 6),
             ('GRID',          (0,0), (-1,-1), 0.5, colors.HexColor('#aaaaaa')),
-            ('TOPPADDING',    (0,0), (-1,-1), 5),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 5),
         ]))
-        elementos.append(tabla_res)
+        elementos.append(tot_tabla)
 
     doc.build(elementos)
     buffer.seek(0)
@@ -711,33 +700,65 @@ def caja_pdf_jornada():
     else:
         elementos.append(make_resumen(res_eg, cnt_eg, total_eg, COLOR_EG, COLOR_BG_EG, COLOR_TOT_EG))
 
+    # Total general acumulado (todos los registros)
+    total_ap_gral = int(db.session.query(db.func.coalesce(db.func.sum(Aporte.importe), 0)).scalar())
+    total_eg_gral = int(db.session.query(db.func.coalesce(db.func.sum(Egreso.importe), 0)).scalar())
+    saldo_gral    = total_ap_gral - total_eg_gral
+
     # --- BALANCE FINAL ---
+    color_saldo_cel  = colors.HexColor('#1a7a1a') if saldo      >= 0 else colors.HexColor('#cc0000')
+    color_saldo_gral = colors.HexColor('#1a7a1a') if saldo_gral >= 0 else colors.HexColor('#cc0000')
+
+    def bal_style(color_ultima):
+        return TableStyle([
+            ('BACKGROUND',    (0,0), (-1,0),  colors.HexColor('#444444')),
+            ('TEXTCOLOR',     (0,0), (-1,0),  colors.white),
+            ('FONTNAME',      (0,0), (-1,0),  'Helvetica-Bold'),
+            ('FONTSIZE',      (0,0), (-1,-1), 11),
+            ('ALIGN',         (1,0), (1,-1),  'RIGHT'),
+            ('FONTNAME',      (0,1), (-1,-2), 'Helvetica'),
+            ('ROWBACKGROUNDS',(0,1), (-1,-2), [colors.white, colors.HexColor('#f5f5f5')]),
+            ('FONTNAME',      (0,-1), (-1,-1), 'Helvetica-Bold'),
+            ('BACKGROUND',    (0,-1), (-1,-1), color_ultima),
+            ('TEXTCOLOR',     (0,-1), (-1,-1), colors.white),
+            ('GRID',          (0,0),  (-1,-1), 0.4, colors.HexColor('#aaaaaa')),
+            ('TOPPADDING',    (0,0),  (-1,-1), 6),
+            ('BOTTOMPADDING', (0,0),  (-1,-1), 6),
+        ])
+
     elementos.append(Spacer(1, 0.8*cm))
     elementos.append(Paragraph("Balance Final", subtit_style))
-    bal_data = [
+
+    # Tabla jornada
+    bal_jornada = Table([
         ['Concepto', 'Importe'],
-        ['Total Aportes', fmt(total_ap)],
-        ['Total Egresos', fmt(total_eg)],
+        ['Total Aportes',  fmt(total_ap)],
+        ['Total Egresos',  fmt(total_eg)],
         ['Saldo de Jornada', fmt(abs(saldo))],
-    ]
-    bal_tabla = Table(bal_data, colWidths=[8*cm, 4*cm])
-    color_saldo_cel = colors.HexColor('#1a7a1a') if saldo >= 0 else colors.HexColor('#cc0000')
-    bal_tabla.setStyle(TableStyle([
-        ('BACKGROUND',    (0,0), (-1,0), colors.HexColor('#444444')),
-        ('TEXTCOLOR',     (0,0), (-1,0), colors.white),
-        ('FONTNAME',      (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE',      (0,0), (-1,-1), 11),
-        ('ALIGN',         (1,0), (1,-1), 'RIGHT'),
-        ('FONTNAME',      (0,1), (-1,-2), 'Helvetica'),
-        ('ROWBACKGROUNDS',(0,1), (-1,-2), [colors.white, colors.HexColor('#f5f5f5')]),
-        ('FONTNAME',      (0,-1), (-1,-1), 'Helvetica-Bold'),
-        ('BACKGROUND',    (0,-1), (-1,-1), color_saldo_cel),
-        ('TEXTCOLOR',     (0,-1), (-1,-1), colors.white),
-        ('GRID',          (0,0), (-1,-1), 0.4, colors.HexColor('#aaaaaa')),
-        ('TOPPADDING',    (0,0), (-1,-1), 6),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+    ], colWidths=[8*cm, 4*cm])
+    bal_jornada.setStyle(bal_style(color_saldo_cel))
+    elementos.append(bal_jornada)
+
+    # Separador
+    elementos.append(Spacer(1, 0.3*cm))
+    sep = Table([['', '']], colWidths=[8*cm, 4*cm])
+    sep.setStyle(TableStyle([
+        ('LINEABOVE',     (0,0), (-1,0), 2, colors.HexColor('#2c5f8a')),
+        ('TOPPADDING',    (0,0), (-1,-1), 0),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
     ]))
-    elementos.append(bal_tabla)
+    elementos.append(sep)
+    elementos.append(Spacer(1, 0.3*cm))
+
+    # Tabla general
+    bal_general = Table([
+        ['Concepto', 'Importe'],
+        ['Total Ingresos General', fmt(total_ap_gral)],
+        ['Total Egresos General',  fmt(total_eg_gral)],
+        ['Saldo en Caja',           fmt(abs(saldo_gral))],
+    ], colWidths=[8*cm, 4*cm])
+    bal_general.setStyle(bal_style(color_saldo_gral))
+    elementos.append(bal_general)
 
     doc.build(elementos)
     buffer.seek(0)
@@ -923,6 +944,121 @@ def informes_pdf_periodo():
     return Response(buf, mimetype='application/pdf',
                     headers={'Content-Disposition': f'inline; filename="informe_periodo_{desde_str}_{hasta_str}.pdf"'})
 
+@app.route('/informes/pdf/periodo/detalle')
+def informes_pdf_periodo_detalle():
+    desde_str = request.args.get('desde', '')
+    hasta_str = request.args.get('hasta', '')
+    try:
+        desde = datetime.strptime(desde_str, "%Y-%m-%d").date()
+        hasta = datetime.strptime(hasta_str, "%Y-%m-%d").date()
+    except ValueError:
+        return "Fechas inválidas", 400
+
+    meses = ['enero','febrero','marzo','abril','mayo','junio',
+             'julio','agosto','septiembre','octubre','noviembre','diciembre']
+    subtitulo = (f"{desde.day} de {meses[desde.month-1]} de {desde.year}"
+                 f" — {hasta.day} de {meses[hasta.month-1]} de {hasta.year}")
+
+    lista_ap = (Aporte.query
+                .filter(Aporte.fechaAporte >= desde, Aporte.fechaAporte <= hasta)
+                .join(Jugador, Aporte.idJugador == Jugador.id)
+                .order_by(Aporte.fechaAporte, Jugador.nombreJugador, Jugador.apellidoJugador)
+                .all())
+    lista_eg = (Egreso.query
+                .filter(Egreso.fechaEgreso >= desde, Egreso.fechaEgreso <= hasta)
+                .order_by(Egreso.fechaEgreso, Egreso.id)
+                .all())
+
+    def fmt(n): return f"{n:,.0f}".replace(',', '.')
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                            leftMargin=2*cm, rightMargin=2*cm,
+                            topMargin=2*cm, bottomMargin=2*cm)
+    styles = getSampleStyleSheet()
+    titulo_style = ParagraphStyle('tit', parent=styles['Title'],  fontSize=14, alignment=TA_CENTER, spaceAfter=4)
+    subtit_style = ParagraphStyle('sub', parent=styles['Normal'], fontSize=10, alignment=TA_CENTER, spaceAfter=10)
+    sec_style    = ParagraphStyle('sec', parent=styles['Heading2'], fontSize=11, spaceBefore=14, spaceAfter=5)
+    msg_style    = ParagraphStyle('msg', parent=styles['Normal'], fontSize=10, spaceAfter=6)
+
+    anio_actual  = datetime.now().year
+    afusa_style  = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=9,
+                                  alignment=TA_CENTER, textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
+
+    COLOR_AP  = colors.HexColor('#2c5f8a')
+    COLOR_EG  = colors.HexColor('#8a2c2c')
+    COLOR_ALT_AP = colors.HexColor('#f0f4f8')
+    COLOR_ALT_EG = colors.HexColor('#f8f0f0')
+    COLOR_TOT_AP = colors.HexColor('#dce8f0')
+    COLOR_TOT_EG = colors.HexColor('#f0dcdc')
+
+    def make_detalle(data, color_hdr, color_alt, color_tot):
+        t = Table(data, colWidths=[2.5*cm, 5.5*cm, 3.5*cm, 2.5*cm], repeatRows=1)
+        n = len(data)
+        t.setStyle(TableStyle([
+            ('BACKGROUND',    (0,0),  (-1,0),   color_hdr),
+            ('TEXTCOLOR',     (0,0),  (-1,0),   colors.white),
+            ('FONTNAME',      (0,0),  (-1,0),   'Helvetica-Bold'),
+            ('FONTSIZE',      (0,0),  (-1,0),   9),
+            ('ALIGN',         (3,0),  (3,-1),   'RIGHT'),
+            ('ALIGN',         (0,0),  (0,-1),   'CENTER'),
+            ('FONTNAME',      (0,1),  (-1,n-2), 'Helvetica'),
+            ('FONTSIZE',      (0,1),  (-1,n-2), 8.5),
+            ('ROWBACKGROUNDS',(0,1),  (-1,n-2), [colors.white, color_alt]),
+            ('FONTNAME',      (0,-1), (-1,-1),  'Helvetica-Bold'),
+            ('BACKGROUND',    (0,-1), (-1,-1),  color_tot),
+            ('GRID',          (0,0),  (-1,-1),  0.4, colors.HexColor('#aaaaaa')),
+            ('TOPPADDING',    (0,0),  (-1,-1),  4),
+            ('BOTTOMPADDING', (0,0),  (-1,-1),  4),
+        ]))
+        return t
+
+    elementos = [
+        Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style),
+        Paragraph("Detalle del Período", titulo_style),
+        Paragraph(subtitulo, subtit_style),
+    ]
+
+    # --- APORTES ---
+    elementos.append(Paragraph("Aportes", sec_style))
+    if not lista_ap:
+        elementos.append(Paragraph("Sin aportes en el período.", msg_style))
+    else:
+        total_ap = sum(int(a.importe) for a in lista_ap)
+        data_ap = [['Fecha', 'Jugador', 'Tipo', 'Importe']]
+        for a in lista_ap:
+            data_ap.append([
+                a.fechaAporte.strftime("%d/%m/%Y"),
+                f"{a.jugador.nombreJugador} {a.jugador.apellidoJugador}",
+                a.tipo_aporte.descripcion if a.tipo_aporte else '',
+                fmt(int(a.importe)),
+            ])
+        data_ap.append(['', 'TOTAL', '', fmt(total_ap)])
+        elementos.append(make_detalle(data_ap, COLOR_AP, COLOR_ALT_AP, COLOR_TOT_AP))
+
+    # --- EGRESOS ---
+    elementos.append(Spacer(1, 0.6*cm))
+    elementos.append(Paragraph("Egresos", sec_style))
+    if not lista_eg:
+        elementos.append(Paragraph("Sin egresos en el período.", msg_style))
+    else:
+        total_eg = sum(int(e.importe) for e in lista_eg)
+        data_eg = [['Fecha', 'Descripción', 'Tipo', 'Importe']]
+        for e in lista_eg:
+            data_eg.append([
+                e.fechaEgreso.strftime("%d/%m/%Y"),
+                e.descripcion or '-',
+                e.tipo_egreso.descripcion if e.tipo_egreso else '',
+                fmt(int(e.importe)),
+            ])
+        data_eg.append(['', 'TOTAL', '', fmt(total_eg)])
+        elementos.append(make_detalle(data_eg, COLOR_EG, COLOR_ALT_EG, COLOR_TOT_EG))
+
+    doc.build(elementos)
+    buffer.seek(0)
+    return Response(buffer, mimetype='application/pdf',
+                    headers={'Content-Disposition': f'inline; filename="detalle_periodo_{desde_str}_{hasta_str}.pdf"'})
+
 @app.route('/informes/pdf/general')
 def informes_pdf_general():
     lista_ap = Aporte.query.all()
@@ -1062,6 +1198,138 @@ def informes_pdf_mensualidades():
     buffer.seek(0)
     return Response(buffer, mimetype='application/pdf',
                     headers={'Content-Disposition': f'inline; filename="mensualidades_{anio}.pdf"'})
+
+@app.route('/informes/pdf/mensualidades/detalle')
+def informes_pdf_mensualidades_detalle():
+    from sqlalchemy import extract
+    import re as _re
+    anio = request.args.get('anio', datetime.now().year, type=int)
+
+    tipo_m = TipoAporte.query.filter_by(descripcion='Mensualidad').first()
+    if not tipo_m:
+        return "Tipo 'Mensualidad' no encontrado", 400
+
+    cod_filtro = request.args.get('cod', '').strip()
+
+    query = (Aporte.query
+             .filter(Aporte.codTipoAporte == tipo_m.idTipoAporte)
+             .join(Jugador, Aporte.idJugador == Jugador.id)
+             .filter(Jugador.codJugador != 9999))
+
+    if cod_filtro and cod_filtro.isdigit():
+        query = query.filter(Jugador.codJugador == int(cod_filtro))
+
+    aportes = query.order_by(Jugador.apellidoJugador, Jugador.nombreJugador, Aporte.fechaAporte).all()
+
+    MESES = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio',
+             'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
+    def mes_destino(a):
+        m = _re.match(r'^mes:(\d{4})-(\d{2})$', a.descripcion or '')
+        if m:
+            return f"{MESES[int(m.group(2))]} {m.group(1)}"
+        return f"{MESES[a.fechaAporte.month]} {a.fechaAporte.year}"
+
+    def fmt(n): return f"{n:,.0f}".replace(',', '.')
+
+    from reportlab.lib.pagesizes import landscape
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
+                            leftMargin=1.5*cm, rightMargin=1.5*cm,
+                            topMargin=1.8*cm, bottomMargin=1.5*cm)
+    styles = getSampleStyleSheet()
+    titulo_style = ParagraphStyle('tit', parent=styles['Title'], fontSize=14,
+                                  alignment=TA_CENTER, spaceAfter=4)
+    sub_style    = ParagraphStyle('sub', parent=styles['Normal'], fontSize=10,
+                                  alignment=TA_CENTER, spaceAfter=12)
+    sec_style    = ParagraphStyle('sec', parent=styles['Heading3'], fontSize=10,
+                                  spaceBefore=10, spaceAfter=3,
+                                  textColor=colors.HexColor('#2c5f8a'))
+
+    COLOR_HDR = colors.HexColor('#2c5f8a')
+    COLOR_ALT = colors.HexColor('#f0f4f8')
+    COLOR_TOT = colors.HexColor('#dce8f0')
+    col_widths = [1.5*cm, 3.5*cm, 3.0*cm, 3.0*cm, 2.5*cm]
+
+    # Agrupar por jugador
+    jugadores_pagos = {}
+    for a in aportes:
+        key = a.idJugador
+        jugadores_pagos.setdefault(key, {'jugador': a.jugador, 'pagos': []})
+        jugadores_pagos[key]['pagos'].append(a)
+
+    anio_actual = datetime.now().year
+    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=9,
+                                 alignment=TA_CENTER, textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
+    elementos = [
+        Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style),
+        Paragraph(f"Detalle de Mensualidades — {'Jugador: ' + cod_filtro if cod_filtro else 'Todos los registros'}", titulo_style),
+        Paragraph(f"Año de consulta: {anio}  |  Jugadores: {len(jugadores_pagos)}", sub_style),
+    ]
+
+    total_gral = 0
+    for jid, info in sorted(jugadores_pagos.items(),
+                             key=lambda x: (x[1]['jugador'].apellidoJugador,
+                                            x[1]['jugador'].nombreJugador)):
+        j = info['jugador']
+        pagos = info['pagos']
+        total_jug = sum(int(a.importe) for a in pagos)
+        total_gral += total_jug
+
+        elementos.append(Paragraph(
+            f"{j.apellidoJugador} {j.nombreJugador}  —  Total: {fmt(total_jug)} Gs", sec_style))
+
+        data = [['#', 'Jugador', 'Mes de Pago', 'Fecha de Registro', 'Importe']]
+        for i, a in enumerate(pagos, 1):
+            data.append([
+                str(i),
+                f"{j.nombreJugador} {j.apellidoJugador}",
+                mes_destino(a),
+                a.fechaAporte.strftime("%d/%m/%Y"),
+                fmt(int(a.importe)),
+            ])
+        data.append(['', '', '', 'TOTAL', fmt(total_jug)])
+
+        tabla = Table(data, colWidths=col_widths, repeatRows=1)
+        n = len(data)
+        tabla.setStyle(TableStyle([
+            ('BACKGROUND',    (0,0),  (-1,0),  COLOR_HDR),
+            ('TEXTCOLOR',     (0,0),  (-1,0),  colors.white),
+            ('FONTNAME',      (0,0),  (-1,0),  'Helvetica-Bold'),
+            ('FONTSIZE',      (0,0),  (-1,0),  8),
+            ('ALIGN',         (0,0),  (0,-1),  'CENTER'),
+            ('ALIGN',         (4,0),  (4,-1),  'RIGHT'),
+            ('ALIGN',         (3,0),  (3,-1),  'CENTER'),
+            ('FONTNAME',      (0,1),  (-1,n-2), 'Helvetica'),
+            ('FONTSIZE',      (0,1),  (-1,n-2), 8),
+            ('ROWBACKGROUNDS',(0,1),  (-1,n-2), [colors.white, COLOR_ALT]),
+            ('FONTNAME',      (0,-1), (-1,-1), 'Helvetica-Bold'),
+            ('BACKGROUND',    (0,-1), (-1,-1), COLOR_TOT),
+            ('GRID',          (0,0),  (-1,-1), 0.3, colors.HexColor('#aaaaaa')),
+            ('TOPPADDING',    (0,0),  (-1,-1), 3),
+            ('BOTTOMPADDING', (0,0),  (-1,-1), 3),
+        ]))
+        elementos.append(tabla)
+
+    # Total general
+    elementos.append(Spacer(1, 0.5*cm))
+    tot = Table([['TOTAL GENERAL', fmt(total_gral)]], colWidths=[10*cm, 3*cm])
+    tot.setStyle(TableStyle([
+        ('BACKGROUND',    (0,0), (-1,-1), colors.HexColor('#1e4a6e')),
+        ('TEXTCOLOR',     (0,0), (-1,-1), colors.white),
+        ('FONTNAME',      (0,0), (-1,-1), 'Helvetica-Bold'),
+        ('FONTSIZE',      (0,0), (-1,-1), 11),
+        ('ALIGN',         (1,0), (1,-1),  'RIGHT'),
+        ('TOPPADDING',    (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+        ('GRID',          (0,0), (-1,-1), 0.4, colors.HexColor('#aaaaaa')),
+    ]))
+    elementos.append(tot)
+
+    doc.build(elementos)
+    buffer.seek(0)
+    return Response(buffer, mimetype='application/pdf',
+                    headers={'Content-Disposition': f'inline; filename="mensualidades_detalle_{anio}.pdf"'})
 
 @app.route('/about')
 def about():
