@@ -6,7 +6,7 @@ import io
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import cm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
 
@@ -308,15 +308,17 @@ def aportes_pdf():
 
     styles = getSampleStyleSheet()
     titulo_style = ParagraphStyle('titulo', parent=styles['Title'],
-                                  fontSize=14, alignment=TA_CENTER, spaceAfter=12)
+                                  fontSize=11, alignment=TA_CENTER, spaceAfter=12)
     msg_style = ParagraphStyle('msg', parent=styles['Normal'],
                                fontSize=11, alignment=TA_CENTER, spaceBefore=30)
 
     anio_actual = datetime.now().year
-    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=9,
-                                 alignment=TA_CENTER, textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
+    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=14,
+                                 fontName='Helvetica-Bold', alignment=TA_CENTER,
+                                 textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
     elementos = []
     elementos.append(Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style))
+    elementos.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#2c5f8a'), spaceAfter=8))
     elementos.append(Paragraph(f"Resumen de la Jornada - {fecha_larga}", titulo_style))
     elementos.append(Spacer(1, 0.4*cm))
 
@@ -497,16 +499,18 @@ def egresos_pdf():
                             topMargin=2*cm, bottomMargin=2*cm)
     styles = getSampleStyleSheet()
     titulo_style = ParagraphStyle('titulo', parent=styles['Title'],
-                                  fontSize=14, alignment=TA_CENTER, spaceAfter=12)
+                                  fontSize=11, alignment=TA_CENTER, spaceAfter=12)
     msg_style    = ParagraphStyle('msg', parent=styles['Normal'],
                                   fontSize=11, alignment=TA_CENTER, spaceBefore=30)
     subtitulo_style = ParagraphStyle('subtitulo', parent=styles['Heading2'],
                                      fontSize=11, spaceAfter=6)
     anio_actual = datetime.now().year
-    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=9,
-                                 alignment=TA_CENTER, textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
+    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=14,
+                                 fontName='Helvetica-Bold', alignment=TA_CENTER,
+                                 textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
     elementos = []
     elementos.append(Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style))
+    elementos.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#2c5f8a'), spaceAfter=8))
     elementos.append(Paragraph(f"Resumen de Egresos - {fecha_larga}", titulo_style))
     elementos.append(Spacer(1, 0.4*cm))
 
@@ -609,7 +613,7 @@ def caja_pdf_jornada():
                             leftMargin=2*cm, rightMargin=2*cm,
                             topMargin=2*cm, bottomMargin=2*cm)
     styles = getSampleStyleSheet()
-    titulo_style    = ParagraphStyle('tit',  parent=styles['Title'],  fontSize=15, alignment=TA_CENTER, spaceAfter=4)
+    titulo_style    = ParagraphStyle('tit',  parent=styles['Title'],  fontSize=11, alignment=TA_CENTER, spaceAfter=4)
     subtit_style    = ParagraphStyle('sub',  parent=styles['Heading2'],fontSize=11, spaceBefore=14, spaceAfter=5)
     msg_style       = ParagraphStyle('msg',  parent=styles['Normal'], fontSize=10, spaceAfter=6)
     saldo_style     = ParagraphStyle('sal',  parent=styles['Normal'], fontSize=12, spaceBefore=10,
@@ -677,10 +681,12 @@ def caja_pdf_jornada():
         cnt_eg[t] = cnt_eg.get(t, 0) + 1
 
     anio_actual = datetime.now().year
-    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=9,
-                                 alignment=TA_CENTER, textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
+    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=14,
+                                 fontName='Helvetica-Bold', alignment=TA_CENTER,
+                                 textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
     elementos = []
     elementos.append(Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style))
+    elementos.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#2c5f8a'), spaceAfter=8))
     elementos.append(Paragraph("Resumen de la Jornada", titulo_style))
     elementos.append(Paragraph(fecha_larga, ParagraphStyle('fec', parent=styles['Normal'],
                                 fontSize=11, alignment=TA_CENTER, spaceAfter=10)))
@@ -837,7 +843,7 @@ def _pdf_informe(lista_ap, lista_eg, titulo, subtitulo):
                             leftMargin=2*cm, rightMargin=2*cm,
                             topMargin=2*cm, bottomMargin=2*cm)
     styles = getSampleStyleSheet()
-    titulo_style = ParagraphStyle('tit', parent=styles['Title'],  fontSize=15, alignment=TA_CENTER, spaceAfter=4)
+    titulo_style = ParagraphStyle('tit', parent=styles['Title'],  fontSize=11, alignment=TA_CENTER, spaceAfter=4)
     subtit_style = ParagraphStyle('sub', parent=styles['Heading2'], fontSize=11, spaceBefore=14, spaceAfter=5)
     msg_style    = ParagraphStyle('msg', parent=styles['Normal'],  fontSize=10, spaceAfter=6)
 
@@ -869,14 +875,19 @@ def _pdf_informe(lista_ap, lista_eg, titulo, subtitulo):
         ]))
         return t
 
-    anio_actual = datetime.now().year
-    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=9,
-                                 alignment=TA_CENTER, textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
+    anio_actual  = datetime.now().year
+    afusa_style  = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=14,
+                                  fontName='Helvetica-Bold', alignment=TA_CENTER,
+                                  textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
+    subtit_inf   = ParagraphStyle('subtit_inf', parent=styles['Heading2'], fontSize=11,
+                                  alignment=TA_CENTER, spaceAfter=4)
+    sub2_style   = ParagraphStyle('sub2', parent=styles['Normal'],
+                                  fontSize=10, alignment=TA_CENTER, spaceAfter=10)
     elementos = []
     elementos.append(Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style))
-    elementos.append(Paragraph(titulo, titulo_style))
-    elementos.append(Paragraph(subtitulo, ParagraphStyle('sub2', parent=styles['Normal'],
-                                fontSize=11, alignment=TA_CENTER, spaceAfter=10)))
+    elementos.append(HRFlowable(width="100%", thickness=0.4, color=colors.HexColor('#2c5f8a'), spaceBefore=6, spaceAfter=8))
+    elementos.append(Paragraph(titulo, subtit_inf))
+    elementos.append(Paragraph(subtitulo, sub2_style))
     elementos.append(Spacer(1, 0.3*cm))
 
     elementos.append(Paragraph("Resumen de Aportes", subtit_style))
@@ -976,14 +987,15 @@ def informes_pdf_periodo_detalle():
                             leftMargin=2*cm, rightMargin=2*cm,
                             topMargin=2*cm, bottomMargin=2*cm)
     styles = getSampleStyleSheet()
-    titulo_style = ParagraphStyle('tit', parent=styles['Title'],  fontSize=14, alignment=TA_CENTER, spaceAfter=4)
+    titulo_style = ParagraphStyle('tit', parent=styles['Title'],  fontSize=11, alignment=TA_CENTER, spaceAfter=4)
     subtit_style = ParagraphStyle('sub', parent=styles['Normal'], fontSize=10, alignment=TA_CENTER, spaceAfter=10)
     sec_style    = ParagraphStyle('sec', parent=styles['Heading2'], fontSize=11, spaceBefore=14, spaceAfter=5)
     msg_style    = ParagraphStyle('msg', parent=styles['Normal'], fontSize=10, spaceAfter=6)
 
     anio_actual  = datetime.now().year
-    afusa_style  = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=9,
-                                  alignment=TA_CENTER, textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
+    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=14,
+                                 fontName='Helvetica-Bold', alignment=TA_CENTER,
+                                 textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
 
     COLOR_AP  = colors.HexColor('#2c5f8a')
     COLOR_EG  = colors.HexColor('#8a2c2c')
@@ -1015,6 +1027,7 @@ def informes_pdf_periodo_detalle():
 
     elementos = [
         Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style),
+        HRFlowable(width="100%", thickness=0.4, color=colors.HexColor('#2c5f8a'), spaceBefore=6, spaceAfter=8),
         Paragraph("Detalle del Período", titulo_style),
         Paragraph(subtitulo, subtit_style),
     ]
@@ -1119,17 +1132,20 @@ def informes_pdf_mensualidades():
                             leftMargin=1.5*cm, rightMargin=1.5*cm,
                             topMargin=1.8*cm, bottomMargin=1.5*cm)
     styles = getSampleStyleSheet()
-    titulo_style = ParagraphStyle('tit', parent=styles['Title'], fontSize=14,
+    titulo_style = ParagraphStyle('tit', parent=styles['Title'], fontSize=11,
+                                  alignment=TA_CENTER, spaceAfter=4)
+    subtit_mens  = ParagraphStyle('subtit_mens', parent=styles['Heading2'], fontSize=11,
                                   alignment=TA_CENTER, spaceAfter=4)
     sub_style    = ParagraphStyle('sub', parent=styles['Normal'], fontSize=10,
                                   alignment=TA_CENTER, spaceAfter=12)
 
-    col_nombre = 5.8*cm
-    col_mes    = 1.62*cm
+    col_id     = 1.2*cm
+    col_nombre = 4.8*cm
+    col_mes    = 1.55*cm
     col_total  = 2.0*cm
-    col_widths = [col_nombre] + [col_mes]*12 + [col_total]
+    col_widths = [col_id, col_nombre] + [col_mes]*12 + [col_total]
 
-    header = ['Jugador'] + MESES_CORTOS + ['Total']
+    header = ['ID', 'Jugador'] + MESES_CORTOS + ['Total']
     data   = [header]
 
     totales_mes = {m: 0 for m in range(1, 13)}
@@ -1137,7 +1153,7 @@ def informes_pdf_mensualidades():
 
     for j in jug_con_pago:
         mp = pagos_mes.get(j.id, {})
-        fila = [f"{j.apellidoJugador} {j.nombreJugador}"]
+        fila = [str(j.codJugador), f"{j.apellidoJugador} {j.nombreJugador}"]
         total_jug = 0
         for mes in range(1, 13):
             v = mp.get(mes, 0)
@@ -1149,7 +1165,7 @@ def informes_pdf_mensualidades():
         data.append(fila)
 
     # Fila totales
-    fila_tot = ['TOTAL']
+    fila_tot = ['', 'TOTAL']
     for mes in range(1, 13):
         fila_tot.append(fmt(totales_mes[mes]))
     fila_tot.append(fmt(total_gral))
@@ -1167,13 +1183,14 @@ def informes_pdf_mensualidades():
         ('TEXTCOLOR',     (0,0),  (-1,0),  colors.white),
         ('FONTNAME',      (0,0),  (-1,0),  'Helvetica-Bold'),
         ('FONTSIZE',      (0,0),  (-1,0),  8),
-        ('ALIGN',         (0,0),  (0,0),   'LEFT'),
-        ('ALIGN',         (1,0),  (-1,0),  'CENTER'),
+        ('ALIGN',         (0,0),  (0,-1),  'CENTER'),
+        ('ALIGN',         (1,0),  (1,0),   'LEFT'),
+        ('ALIGN',         (2,0),  (-1,0),  'CENTER'),
         # Datos
         ('FONTNAME',      (0,1),  (-1,n-2), 'Helvetica'),
         ('FONTSIZE',      (0,1),  (-1,n-2), 7.5),
-        ('ALIGN',         (0,1),  (0,-1),  'LEFT'),
-        ('ALIGN',         (1,1),  (-1,-1), 'RIGHT'),
+        ('ALIGN',         (1,1),  (1,-1),  'LEFT'),
+        ('ALIGN',         (2,1),  (-1,-1), 'RIGHT'),
         ('ROWBACKGROUNDS',(0,1),  (-1,n-2), [colors.white, COLOR_ALT]),
         # Fila total
         ('FONTNAME',      (0,-1), (-1,-1), 'Helvetica-Bold'),
@@ -1186,11 +1203,13 @@ def informes_pdf_mensualidades():
     ]))
 
     anio_actual = datetime.now().year
-    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=9,
-                                 alignment=TA_CENTER, textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
+    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=14,
+                                 fontName='Helvetica-Bold', alignment=TA_CENTER,
+                                 textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
     elementos = [
         Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style),
-        Paragraph(f"Progreso de Mensualidades {anio}", titulo_style),
+        HRFlowable(width="100%", thickness=0.4, color=colors.HexColor('#2c5f8a'), spaceBefore=6, spaceAfter=8),
+        Paragraph(f"Progreso de Mensualidades {anio}", subtit_mens),
         Paragraph(f"Jugadores con pagos registrados: {len(jug_con_pago)}", sub_style),
         tabla,
     ]
@@ -1224,11 +1243,16 @@ def informes_pdf_mensualidades_detalle():
     MESES = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio',
              'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
-    def mes_destino(a):
+    def mes_num(a):
+        """Devuelve (anio, mes) del destino del pago para ordenar."""
         m = _re.match(r'^mes:(\d{4})-(\d{2})$', a.descripcion or '')
         if m:
-            return f"{MESES[int(m.group(2))]} {m.group(1)}"
-        return f"{MESES[a.fechaAporte.month]} {a.fechaAporte.year}"
+            return (int(m.group(1)), int(m.group(2)))
+        return (a.fechaAporte.year, a.fechaAporte.month)
+
+    def mes_destino(a):
+        anio_m, mes_m = mes_num(a)
+        return f"{MESES[mes_m]} {anio_m}"
 
     def fmt(n): return f"{n:,.0f}".replace(',', '.')
 
@@ -1238,7 +1262,7 @@ def informes_pdf_mensualidades_detalle():
                             leftMargin=1.5*cm, rightMargin=1.5*cm,
                             topMargin=1.8*cm, bottomMargin=1.5*cm)
     styles = getSampleStyleSheet()
-    titulo_style = ParagraphStyle('tit', parent=styles['Title'], fontSize=14,
+    titulo_style = ParagraphStyle('tit', parent=styles['Title'], fontSize=11,
                                   alignment=TA_CENTER, spaceAfter=4)
     sub_style    = ParagraphStyle('sub', parent=styles['Normal'], fontSize=10,
                                   alignment=TA_CENTER, spaceAfter=12)
@@ -1259,10 +1283,12 @@ def informes_pdf_mensualidades_detalle():
         jugadores_pagos[key]['pagos'].append(a)
 
     anio_actual = datetime.now().year
-    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=9,
-                                 alignment=TA_CENTER, textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
+    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=14,
+                                 fontName='Helvetica-Bold', alignment=TA_CENTER,
+                                 textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
     elementos = [
         Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style),
+        HRFlowable(width="100%", thickness=0.4, color=colors.HexColor('#2c5f8a'), spaceBefore=6, spaceAfter=8),
         Paragraph(f"Detalle de Mensualidades — {'Jugador: ' + cod_filtro if cod_filtro else 'Todos los registros'}", titulo_style),
         Paragraph(f"Año de consulta: {anio}  |  Jugadores: {len(jugadores_pagos)}", sub_style),
     ]
@@ -1272,7 +1298,7 @@ def informes_pdf_mensualidades_detalle():
                              key=lambda x: (x[1]['jugador'].apellidoJugador,
                                             x[1]['jugador'].nombreJugador)):
         j = info['jugador']
-        pagos = info['pagos']
+        pagos = sorted(info['pagos'], key=mes_num)
         total_jug = sum(int(a.importe) for a in pagos)
         total_gral += total_jug
 
