@@ -115,13 +115,30 @@ def operador_blocked(f):
 @app.route('/')
 @login_required
 def index():
+    from sqlalchemy import extract
     jugadores = Jugador.query.order_by(Jugador.nombreJugador.asc()).all()
-    
+
     # Calcular el siguiente código disponible
     ultimo_codigo = db.session.query(db.func.max(Jugador.codJugador)).scalar()
     siguiente_codigo = (ultimo_codigo or 0) + 1
-    
-    return render_template('jugadores.html', jugadores=jugadores, siguiente_codigo=siguiente_codigo)
+
+    # Actividad del año: partidos disputados (Aporte Jornada) y última fecha
+    anio_actual = datetime.now().year
+    tipo_jornada = TipoAporte.query.filter_by(descripcion='Aporte Jornada').first()
+    actividad = {}
+    if tipo_jornada:
+        stats = db.session.query(
+            Aporte.idJugador,
+            db.func.count(Aporte.id).label('partidos'),
+            db.func.max(Aporte.fechaAporte).label('ultima_fecha')
+        ).filter(
+            Aporte.codTipoAporte == tipo_jornada.idTipoAporte,
+            extract('year', Aporte.fechaAporte) == anio_actual
+        ).group_by(Aporte.idJugador).all()
+        actividad = {r.idJugador: {'partidos': r.partidos, 'ultima': r.ultima_fecha} for r in stats}
+
+    return render_template('jugadores.html', jugadores=jugadores, siguiente_codigo=siguiente_codigo,
+                           actividad=actividad, anio_actual=anio_actual)
 
 # Crear jugador
 @app.route('/add', methods=['POST'])
@@ -164,9 +181,24 @@ def delete_jugador(id):
 @app.route('/edit/<int:id>')
 @login_required
 def edit_jugador(id):
-    jugadores = Jugador.query.all()
+    from sqlalchemy import extract
+    jugadores = Jugador.query.order_by(Jugador.nombreJugador.asc()).all()
     jugador = Jugador.query.get_or_404(id)
-    return render_template('jugadores.html', jugadores=jugadores, jugador_edit=jugador)
+    anio_actual = datetime.now().year
+    tipo_jornada = TipoAporte.query.filter_by(descripcion='Aporte Jornada').first()
+    actividad = {}
+    if tipo_jornada:
+        stats = db.session.query(
+            Aporte.idJugador,
+            db.func.count(Aporte.id).label('partidos'),
+            db.func.max(Aporte.fechaAporte).label('ultima_fecha')
+        ).filter(
+            Aporte.codTipoAporte == tipo_jornada.idTipoAporte,
+            extract('year', Aporte.fechaAporte) == anio_actual
+        ).group_by(Aporte.idJugador).all()
+        actividad = {r.idJugador: {'partidos': r.partidos, 'ultima': r.ultima_fecha} for r in stats}
+    return render_template('jugadores.html', jugadores=jugadores, jugador_edit=jugador,
+                           actividad=actividad, anio_actual=anio_actual)
 
 # Guardar edición
 @app.route('/update/<int:id>', methods=['POST'])

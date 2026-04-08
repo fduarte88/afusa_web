@@ -25,6 +25,7 @@
             border:none; border-radius:5px; cursor:pointer; font-size:13px; font-weight:bold;
         }
         .btn-resumen:hover { background:#1e4a6e; }
+        #tablaJugadoresBody tr.kb-highlight td { background:#cce5ff !important; }
     </style>
 </head>
 <body>
@@ -519,7 +520,36 @@
     const inpNombre  = document.getElementById('nombre_jugador');
     const hidId      = document.getElementById('idJugador');
 
+    let _filaResaltada = null;
+
+    function getFilasVisibles() {
+        return Array.from(tablaBody.querySelectorAll('tr')).filter(r => r.style.display !== 'none');
+    }
+
+    function resaltarFila(fila) {
+        if (_filaResaltada) _filaResaltada.classList.remove('kb-highlight');
+        _filaResaltada = fila;
+        if (fila) { fila.classList.add('kb-highlight'); fila.scrollIntoView({ block: 'nearest' }); }
+    }
+
+    function seleccionarFilaModal(fila) {
+        if (!fila) return;
+        const cells = fila.querySelectorAll('td');
+        if (cells.length < 3) return;
+        const codigo = cells[0].textContent.trim();
+        const jug = JUGADORES.find(j => j.codigo === codigo);
+        if (jug) {
+            inpCodigo.value = codigo;
+            inpNombre.value = jug.nombre;
+            hidId.value = jug.id;
+            seleccionarAporteJornada();
+        }
+        cerrarModal();
+        document.querySelector('#formAporte button[type="submit"]').focus();
+    }
+
     function filtrarTabla(q) {
+        if (_filaResaltada) { _filaResaltada.classList.remove('kb-highlight'); _filaResaltada = null; }
         q = q.toLowerCase();
         tablaBody.querySelectorAll('tr').forEach(function(fila) {
             const cells = fila.querySelectorAll('td');
@@ -533,29 +563,40 @@
 
     function abrirModal() {
         buscador.value = '';
+        _filaResaltada = null;
         filtrarTabla('');
         modal.style.display = 'block';
         setTimeout(() => buscador.focus(), 50);
     }
-    function cerrarModal() { modal.style.display = 'none'; }
+    function cerrarModal() {
+        if (_filaResaltada) { _filaResaltada.classList.remove('kb-highlight'); _filaResaltada = null; }
+        modal.style.display = 'none';
+    }
 
     buscador.addEventListener('input', function() { filtrarTabla(this.value); });
+
+    buscador.addEventListener('keydown', function(e) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            const filas = getFilasVisibles();
+            if (!filas.length) return;
+            let idx = _filaResaltada ? filas.indexOf(_filaResaltada) : -1;
+            idx = e.key === 'ArrowDown' ? Math.min(idx + 1, filas.length - 1) : Math.max(idx - 1, 0);
+            resaltarFila(filas[idx]);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            seleccionarFilaModal(_filaResaltada || getFilasVisibles()[0]);
+        } else if (e.key === 'Escape') {
+            cerrarModal();
+        }
+    });
+
     document.getElementById('cerrarModal').addEventListener('click', cerrarModal);
 
     tablaBody.addEventListener('click', function(e) {
         const fila = e.target.closest('tr');
         if (!fila) return;
-        const cells = fila.querySelectorAll('td');
-        if (cells.length < 3) return;
-        const codigo = cells[0].textContent.trim();
-        const jug = JUGADORES.find(j => j.codigo === codigo);
-        if (jug) {
-            inpCodigo.value = codigo;
-            inpNombre.value = jug.nombre;
-            hidId.value = jug.id;
-            seleccionarAporteJornada();
-        }
-        cerrarModal();
+        seleccionarFilaModal(fila);
     });
 
     function seleccionarAporteJornada() {
@@ -585,7 +626,15 @@
     inpCodigo.addEventListener('keydown', function(e) {
         const esAsterisco = (e.key === '*') || (e.keyCode === 106) || (e.shiftKey && e.key === '8');
         if (esAsterisco) { e.preventDefault(); abrirModal(); return; }
-        if (e.key === 'Enter') { e.preventDefault(); if (!syncDesdeCodigo()) { alert('Código no encontrado.'); inpCodigo.select(); } }
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (syncDesdeCodigo()) {
+                document.querySelector('#formAporte button[type="submit"]').focus();
+            } else {
+                alert('Código no encontrado.');
+                inpCodigo.select();
+            }
+        }
     });
     inpCodigo.addEventListener('blur', syncDesdeCodigo);
 

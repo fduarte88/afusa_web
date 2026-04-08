@@ -33,7 +33,7 @@
 </nav>
 {% include '_pageheader.html' %}
 
-    <h1>AFUSA - Gestión de Jugadores</h1>
+    <h1>Gestión de Jugadores <span style="font-size:14px; font-weight:normal; color:#7a8fa6; margin-left:10px;">{{ jugadores|length }} jugador{{ 'es' if jugadores|length != 1 else '' }} registrado{{ 's' if jugadores|length != 1 else '' }}</span></h1>
 
     <!-- Formulario para agregar jugador -->
     <h2>Agregar Jugador</h2>
@@ -89,6 +89,8 @@
                 <th>Fecha Nacimiento</th>
                 <th>Alias</th>
                 <th>Fecha Registro</th>
+                <th title="Aportes Jornada en {{ anio_actual }}">Partidos {{ anio_actual }}</th>
+                <th>Última participación</th>
                 <th>Acciones</th>
             </tr>
         </thead>
@@ -102,7 +104,21 @@
                 <td>{{ j.fechaNacimiento.strftime('%d/%m/%Y') if j.fechaNacimiento else '' }}</td>
                 <td>{{ j.alias or '-' }}</td>
                 <td>{{ j.adddate.strftime('%d/%m/%Y') if j.adddate else '' }}</td>
-               
+                {% set act = actividad.get(j.id, {}) %}
+                <td style="text-align:center;">
+                    {% if act.partidos %}
+                    <span style="font-weight:bold; color:#2c5f8a;">{{ act.partidos }}</span>
+                    {% else %}
+                    <span style="color:#bbb;">—</span>
+                    {% endif %}
+                </td>
+                <td style="text-align:center;">
+                    {% if act.ultima %}
+                    {{ act.ultima.strftime('%d/%m/%Y') }}
+                    {% else %}
+                    <span style="color:#bbb;">—</span>
+                    {% endif %}
+                </td>
                 <td>
                     <a href="{{ url_for('edit_jugador', id=j.id) }}" class="btn btn-primary btn-sm" style="color: #007bff;">Editar</a> |
                     <a href="{{ url_for('delete_jugador', id=j.id) }}" onclick="return confirm('¿Eliminar este jugador?')">Eliminar</a>
@@ -111,7 +127,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="8">No hay jugadores registrados.</td>
+                <td colspan="10">No hay jugadores registrados.</td>
             </tr>
             {% endfor %}
         </tbody>
