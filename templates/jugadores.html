@@ -74,11 +74,17 @@
     <hr>
 
     <!-- Listado de jugadores -->
-    <h2>Listado de Jugadores</h2>
-   
-     <!-- Cuadro de búsqueda -->
-    <input type="text" id="searchInput" placeholder="Buscar por nombre o apellido..." style="width: 550px;">
-    
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+        <h2 style="margin:0;">Listado de Jugadores</h2>
+        <button type="button" onclick="window.open('{{ url_for('jugadores_pdf') }}', '_blank')"
+                style="padding:7px 16px; background:#2a7a2a; color:#fff; border:none; border-radius:5px; cursor:pointer; font-size:13px; font-weight:bold; margin-top:0;">
+            Imprimir Listado
+        </button>
+    </div>
+
+    <!-- Cuadro de búsqueda -->
+    <input type="text" id="searchInput" placeholder="Buscar por nombre o apellido..." style="width: 550px; margin-bottom:8px;">
+
     <table border="1" cellpadding="5" cellspacing="0">
         <thead>
             <tr>
@@ -87,8 +93,6 @@
                 <th>Apellido</th>
                 <th>Documento</th>
                 <th>Fecha Nacimiento</th>
-                <th>Alias</th>
-                <th>Fecha Registro</th>
                 <th title="Aportes Jornada en {{ anio_actual }}">Partidos {{ anio_actual }}</th>
                 <th>Última participación</th>
                 <th>Acciones</th>
@@ -102,8 +106,6 @@
                 <td>{{ j.apellidoJugador }}</td>
                 <td>{{ j.numeroDocumento }}</td>
                 <td>{{ j.fechaNacimiento.strftime('%d/%m/%Y') if j.fechaNacimiento else '' }}</td>
-                <td>{{ j.alias or '-' }}</td>
-                <td>{{ j.adddate.strftime('%d/%m/%Y') if j.adddate else '' }}</td>
                 {% set act = actividad.get(j.id, {}) %}
                 <td style="text-align:center;">
                     {% if act.partidos %}
@@ -122,12 +124,11 @@
                 <td>
                     <a href="{{ url_for('edit_jugador', id=j.id) }}" class="btn btn-primary btn-sm" style="color: #007bff;">Editar</a> |
                     <a href="{{ url_for('delete_jugador', id=j.id) }}" onclick="return confirm('¿Eliminar este jugador?')">Eliminar</a>
-                    
                 </td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="10">No hay jugadores registrados.</td>
+                <td colspan="8">No hay jugadores registrados.</td>
             </tr>
             {% endfor %}
         </tbody>

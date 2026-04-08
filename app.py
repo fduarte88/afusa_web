@@ -140,6 +140,86 @@ def index():
     return render_template('jugadores.html', jugadores=jugadores, siguiente_codigo=siguiente_codigo,
                            actividad=actividad, anio_actual=anio_actual)
 
+# PDF listado de jugadores
+@app.route('/jugadores/pdf')
+@login_required
+def jugadores_pdf():
+    from sqlalchemy import extract
+    from reportlab.lib.pagesizes import landscape, A4
+    anio_actual = datetime.now().year
+    jugadores = Jugador.query.order_by(Jugador.nombreJugador.asc(), Jugador.apellidoJugador.asc()).all()
+
+    tipo_jornada = TipoAporte.query.filter_by(descripcion='Aporte Jornada').first()
+    actividad = {}
+    if tipo_jornada:
+        stats = db.session.query(
+            Aporte.idJugador,
+            db.func.count(Aporte.id).label('partidos'),
+            db.func.max(Aporte.fechaAporte).label('ultima_fecha')
+        ).filter(
+            Aporte.codTipoAporte == tipo_jornada.idTipoAporte,
+            extract('year', Aporte.fechaAporte) == anio_actual
+        ).group_by(Aporte.idJugador).all()
+        actividad = {r.idJugador: {'partidos': r.partidos, 'ultima': r.ultima_fecha} for r in stats}
+
+    styles = getSampleStyleSheet()
+    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=14,
+                                 fontName='Helvetica-Bold', alignment=TA_CENTER,
+                                 textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
+    titulo_style = ParagraphStyle('tit', parent=styles['Heading2'], fontSize=11,
+                                  alignment=TA_CENTER, spaceAfter=6)
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4),
+                            leftMargin=1.5*cm, rightMargin=1.5*cm,
+                            topMargin=1.5*cm, bottomMargin=1.5*cm)
+    elementos = []
+    elementos.append(Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style))
+    elementos.append(HRFlowable(width="100%", thickness=0.4, color=colors.HexColor('#2c5f8a'), spaceBefore=6, spaceAfter=8))
+    elementos.append(Paragraph("Listado de Jugadores", titulo_style))
+    elementos.append(Spacer(1, 0.3*cm))
+
+    encabezado = ['Cód.', 'Nombre', 'Apellido', 'Documento', 'F. Nacimiento',
+                  'Alias', 'F. Registro', f'Partidos {anio_actual}', 'Última participación']
+    filas = [encabezado]
+    for j in jugadores:
+        act = actividad.get(j.id, {})
+        filas.append([
+            str(j.codJugador),
+            j.nombreJugador,
+            j.apellidoJugador,
+            j.numeroDocumento or '',
+            j.fechaNacimiento.strftime('%d/%m/%Y') if j.fechaNacimiento else '',
+            j.alias or '',
+            j.adddate.strftime('%d/%m/%Y') if j.adddate else '',
+            str(act.get('partidos', '—')) if act.get('partidos') else '—',
+            act['ultima'].strftime('%d/%m/%Y') if act.get('ultima') else '—',
+        ])
+
+    col_widths = [1.2*cm, 4.5*cm, 4.5*cm, 3*cm, 3*cm, 3*cm, 3*cm, 2.5*cm, 3.5*cm]
+    tabla = Table(filas, colWidths=col_widths, repeatRows=1)
+    tabla.setStyle(TableStyle([
+        ('BACKGROUND',   (0,0), (-1,0), colors.HexColor('#2c5f8a')),
+        ('TEXTCOLOR',    (0,0), (-1,0), colors.white),
+        ('FONTNAME',     (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE',     (0,0), (-1,0), 8),
+        ('FONTNAME',     (0,1), (-1,-1), 'Helvetica'),
+        ('FONTSIZE',     (0,1), (-1,-1), 8),
+        ('ROWBACKGROUNDS',(0,1),(-1,-1),[colors.white, colors.HexColor('#f4f8fc')]),
+        ('GRID',         (0,0), (-1,-1), 0.4, colors.HexColor('#c8d4e0')),
+        ('ALIGN',        (0,0), (0,-1), 'CENTER'),
+        ('ALIGN',        (7,0), (8,-1), 'CENTER'),
+        ('VALIGN',       (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING',   (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING',(0,0), (-1,-1), 4),
+    ]))
+    elementos.append(tabla)
+
+    doc.build(elementos)
+    buf.seek(0)
+    return Response(buf.read(), mimetype='application/pdf',
+                    headers={'Content-Disposition': 'inline; filename="jugadores.pdf"'})
+
 # Crear jugador
 @app.route('/add', methods=['POST'])
 @login_required
@@ -404,7 +484,7 @@ def aportes_pdf():
                                  textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
     elementos = []
     elementos.append(Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style))
-    elementos.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#2c5f8a'), spaceAfter=8))
+    elementos.append(HRFlowable(width="100%", thickness=0.4, color=colors.HexColor('#2c5f8a'), spaceBefore=6, spaceAfter=8))
     elementos.append(Paragraph(f"Resumen de la Jornada - {fecha_larga}", titulo_style))
     elementos.append(Spacer(1, 0.4*cm))
 
@@ -538,6 +618,17 @@ def add_tipo_egreso():
             db.session.commit()
     return redirect(url_for('caja') + '?tab=egresos')
 
+@app.route('/egresos/tipo/edit/<int:id>', methods=['POST'])
+@login_required
+@operador_blocked
+def edit_tipo_egreso(id):
+    tipo = TipoEgreso.query.get_or_404(id)
+    desc = request.form.get('descripcion', '').strip()
+    if desc:
+        tipo.descripcion = desc
+        db.session.commit()
+    return redirect(url_for('caja') + '?tab=egresos')
+
 @app.route('/egresos/tipo/delete/<int:id>')
 @login_required
 @operador_blocked
@@ -607,7 +698,7 @@ def egresos_pdf():
                                  textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
     elementos = []
     elementos.append(Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style))
-    elementos.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#2c5f8a'), spaceAfter=8))
+    elementos.append(HRFlowable(width="100%", thickness=0.4, color=colors.HexColor('#2c5f8a'), spaceBefore=6, spaceAfter=8))
     elementos.append(Paragraph(f"Resumen de Egresos - {fecha_larga}", titulo_style))
     elementos.append(Spacer(1, 0.4*cm))
 
@@ -784,7 +875,7 @@ def caja_pdf_jornada():
                                  textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
     elementos = []
     elementos.append(Paragraph(f"AFUSA 1997 - {anio_actual}", afusa_style))
-    elementos.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#2c5f8a'), spaceAfter=8))
+    elementos.append(HRFlowable(width="100%", thickness=0.4, color=colors.HexColor('#2c5f8a'), spaceBefore=6, spaceAfter=8))
     elementos.append(Paragraph("Resumen de la Jornada", titulo_style))
     elementos.append(Paragraph(fecha_larga, ParagraphStyle('fec', parent=styles['Normal'],
                                 fontSize=11, alignment=TA_CENTER, spaceAfter=10)))

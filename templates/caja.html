@@ -294,10 +294,12 @@
                     {% for t in tipos_eg %}
                     <tr>
                         <td>{{ t.idTipoEgreso }}</td>
-                        <td>{{ t.descripcion }}</td>
-                        <td>
+                        <td id="te_desc_{{ t.idTipoEgreso }}">{{ t.descripcion }}</td>
+                        <td style="white-space:nowrap;">
+                            <button type="button" style="font-size:11px; padding:2px 8px;"
+                                onclick="abrirEditarTipoEgreso({{ t.idTipoEgreso }}, '{{ t.descripcion|e }}')">Editar</button>
                             <a href="{{ url_for('delete_tipo_egreso', id=t.idTipoEgreso) }}"
-                               onclick="return confirm('¿Eliminar este tipo?')" style="color:red;">Eliminar</a>
+                               onclick="return confirm('¿Eliminar este tipo?')" style="color:red; font-size:11px; margin-left:4px;">Eliminar</a>
                         </td>
                     </tr>
                     {% endfor %}
@@ -305,6 +307,25 @@
                 </table>
             </div>
         </details>
+
+        <!-- Modal editar tipo de egreso -->
+        <div id="modalEditarTipoEgreso" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000;">
+            <div style="background:#fff; width:380px; margin:12rem auto; padding:24px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,0.3);">
+                <h3 style="margin-top:0;">Editar Tipo de Egreso</h3>
+                <form id="formEditarTipoEgreso" method="POST">
+                    <div style="margin-bottom:14px;">
+                        <label style="font-size:13px; font-weight:bold; display:block; margin-bottom:4px;">Descripción</label>
+                        <input type="text" id="ete_descripcion" name="descripcion" required
+                               style="width:100%; padding:7px 10px; border:1px solid #ccc; border-radius:5px; font-size:13px; box-sizing:border-box;">
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:6px;">
+                        <button type="submit" style="padding:8px 20px; background:#2c5f8a; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Guardar</button>
+                        <button type="button" onclick="document.getElementById('modalEditarTipoEgreso').style.display='none'"
+                                style="padding:8px 16px; background:#aaa; color:#fff; border:none; border-radius:5px; cursor:pointer;">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         <h2>Historial de Egresos</h2>
         <table border="1" cellpadding="5" cellspacing="0">
@@ -643,6 +664,7 @@
             cerrarModal();
             document.getElementById('modalEditarAporte').style.display = 'none';
             document.getElementById('modalEditarEgreso').style.display = 'none';
+            document.getElementById('modalEditarTipoEgreso').style.display = 'none';
         }
     });
 
@@ -813,6 +835,14 @@
             const tipo = fila.getAttribute('data-tipo');
             fila.style.display = (!tipo || activos.includes(tipo)) ? '' : 'none';
         });
+    }
+
+    // --- Editar tipo de egreso ---
+    function abrirEditarTipoEgreso(id, descripcion) {
+        document.getElementById('formEditarTipoEgreso').action = '/egresos/tipo/edit/' + id;
+        document.getElementById('ete_descripcion').value = descripcion;
+        document.getElementById('modalEditarTipoEgreso').style.display = 'block';
+        setTimeout(() => document.getElementById('ete_descripcion').select(), 50);
     }
 
     // --- PDF Resumen Jornada ---
