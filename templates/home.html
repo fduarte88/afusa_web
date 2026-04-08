@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>AFUSA — Inicio</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .home-header {
+            text-align: center;
+            padding: 40px 20px 20px;
+        }
+        .home-header h1 {
+            font-size: 28px;
+            color: #2c5f8a;
+            margin-bottom: 4px;
+        }
+        .home-header p {
+            color: #888;
+            font-size: 14px;
+            margin: 0;
+        }
+        .cards-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 24px;
+            justify-content: center;
+            padding: 40px 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .card {
+            background: #fff;
+            border: 1px solid #dde4ec;
+            border-radius: 12px;
+            padding: 32px 28px;
+            width: 200px;
+            text-align: center;
+            text-decoration: none;
+            color: #2c3e50;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+            transition: transform 0.15s, box-shadow 0.15s;
+            cursor: pointer;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 6px 20px rgba(44,95,138,0.18);
+            border-color: #2c5f8a;
+        }
+        .card .icon {
+            font-size: 40px;
+            margin-bottom: 14px;
+            display: block;
+        }
+        .card .label {
+            font-size: 15px;
+            font-weight: bold;
+            color: #2c5f8a;
+        }
+        .card .desc {
+            font-size: 11px;
+            color: #999;
+            margin-top: 6px;
+        }
+        .card.admin-card { border-color: #c8a800; }
+        .card.admin-card:hover { border-color: #f0c040; box-shadow: 0 6px 20px rgba(200,168,0,0.18); }
+        .card.admin-card .label { color: #8a6f00; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <ul>
+            <li><a href="{{ url_for('home') }}">Home</a></li>
+            <li><a href="{{ url_for('index') }}">Jugadores</a></li>
+            <li class="dropdown">
+                <a href="#">Operaciones ▾</a>
+                <ul class="submenu">
+                    <li><a href="{{ url_for('caja') }}">Registros de Caja</a></li>
+                    <li><a href="{{ url_for('informes') }}">Informes Generales</a></li>
+                </ul>
+            </li>
+            <li><a href="{{ url_for('about') }}">Acerca de</a></li>
+            {% if current_user.rol == 'admin' %}
+            <li><a href="{{ url_for('usuarios') }}" style="color:#f0c040;">Usuarios</a></li>
+            {% endif %}
+            <li><a href="{{ url_for('logout') }}" style="color:#ccc;">Salir ({{ current_user.username }})</a></li>
+        </ul>
+    </nav>
+{% include '_pageheader.html' %}
+
+    <div class="home-header">
+        <h1>AFUSA</h1>
+        <p>1997 — {{ now.year }} &nbsp;·&nbsp; Bienvenido, <strong>{{ current_user.username }}</strong>
+           &nbsp;<span style="background:{% if current_user.rol == 'admin' %}#2c5f8a{% else %}#888{% endif %};
+                              color:#fff; padding:2px 10px; border-radius:10px; font-size:11px;">
+               {{ current_user.rol }}</span>
+        </p>
+    </div>
+
+    <div class="cards-grid">
+
+        <a href="{{ url_for('index') }}" class="card">
+            <span class="icon">👥</span>
+            <div class="label">Jugadores</div>
+            <div class="desc">Alta, baja y modificación de jugadores</div>
+        </a>
+
+        <a href="{{ url_for('caja') }}" class="card">
+            <span class="icon">💰</span>
+            <div class="label">Registros de Caja</div>
+            <div class="desc">Aportes y egresos por jornada</div>
+        </a>
+
+        <a href="{{ url_for('informes') }}" class="card">
+            <span class="icon">📊</span>
+            <div class="label">Informes Generales</div>
+            <div class="desc">Reportes de período, mensualidades y saldos</div>
+        </a>
+
+        <a href="{{ url_for('about') }}" class="card">
+            <span class="icon">ℹ️</span>
+            <div class="label">Acerca de</div>
+            <div class="desc">Información del sistema</div>
+        </a>
+
+        {% if current_user.rol == 'admin' %}
+        <a href="{{ url_for('usuarios') }}" class="card admin-card">
+            <span class="icon">🔐</span>
+            <div class="label">Usuarios</div>
+            <div class="desc">Administrar accesos y roles</div>
+        </a>
+        {% endif %}
+
+    </div>
+{% include '_footer.html' %}
+</body>
+</html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>AFUSA — Iniciar Sesión</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body { display:flex; justify-content:center; align-items:center; min-height:100vh; background:#f0f4f8; margin:0; }
+        .login-box {
+            background:#fff; padding:40px 44px; border-radius:10px;
+            box-shadow:0 4px 24px rgba(0,0,0,0.12); width:340px;
+        }
+        .login-box h1 { text-align:center; color:#2c5f8a; font-size:22px; margin-bottom:4px; }
+        .login-box .sub { text-align:center; font-size:12px; color:#888; margin-bottom:28px; }
+        .login-box label { display:block; font-size:13px; font-weight:bold; margin-bottom:4px; }
+        .login-box input[type=text],
+        .login-box input[type=password] {
+            width:100%; padding:9px 10px; border:1px solid #ccc; border-radius:5px;
+            font-size:14px; margin-bottom:16px; box-sizing:border-box;
+        }
+        .login-box button {
+            width:100%; padding:10px; background:#2c5f8a; color:#fff;
+            border:none; border-radius:5px; font-size:14px; font-weight:bold;
+            cursor:pointer; margin-top:4px;
+        }
+        .login-box button:hover { background:#1e4a6e; }
+        .error-msg { background:#fde8e8; color:#c0392b; padding:8px 12px; border-radius:5px;
+                     font-size:13px; margin-bottom:16px; text-align:center; }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h1>AFUSA</h1>
+        <div class="sub">1997 — {{ now.year }} · Sistema de Gestión</div>
+        {% if error %}
+        <div class="error-msg">{{ error }}</div>
+        {% endif %}
+        <form method="POST">
+            <label>Usuario</label>
+            <input type="text" name="username" autofocus autocomplete="username">
+            <label>Contraseña</label>
+            <input type="password" name="password" autocomplete="current-password">
+            <button type="submit">Iniciar sesión</button>
+        </form>
+    </div>
+</body>
+</html>

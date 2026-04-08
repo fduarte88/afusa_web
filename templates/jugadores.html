@@ -4,13 +4,15 @@
     <meta charset="UTF-8">
     <title>ABM Jugadores</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
 </head>
 <body>
     <!-- Menú de navegación -->
     <nav class="navbar">
     <ul>
-        <li><a href="{{ url_for('index') }}">Home</a></li>
+        <li><a href="{{ url_for('home') }}">Home</a></li>
         <li><a href="{{ url_for('index') }}">Jugadores</a></li>
         
         <!-- Dropdown de Operaciones -->
@@ -23,8 +25,13 @@
         </li>
 
         <li><a href="{{ url_for('about') }}">Acerca de</a></li>
+            {% if current_user.rol == 'admin' %}
+            <li><a href="{{ url_for('usuarios') }}" style="color:#f0c040;">Usuarios</a></li>
+            {% endif %}
+            <li><a href="{{ url_for('logout') }}" style="color:#ccc;">Salir ({{ current_user.username }})</a></li>
     </ul>
 </nav>
+{% include '_pageheader.html' %}
 
     <h1>AFUSA - Gestión de Jugadores</h1>
 
@@ -49,8 +56,9 @@
     <input type="text" name="numeroDocumento" value="{{ jugador_edit.numeroDocumento if jugador_edit else '' }}" required><br>
 
     <label>Fecha Nacimiento:</label>
-    <input type="date" name="fechaNacimiento" value="{{ jugador_edit.fechaNacimiento.strftime('%Y-%m-%d') if jugador_edit else '' }}" required><br>
-    <!-- <input type="date" name="fechaNacimiento" value="{{ jugador_edit.fechaNacimiento if jugador_edit else '' }}" required><br> -->
+    <input type="text" id="fechaNacimiento" name="fechaNacimiento"
+           value="{{ jugador_edit.fechaNacimiento.strftime('%Y-%m-%d') if jugador_edit else '' }}"
+           placeholder="DD/MM/AAAA" required readonly><br>
 
     <label>Alias:</label>
     <input type="text" name="alias" value="{{ jugador_edit.alias if jugador_edit else '' }}"><br>
@@ -111,6 +119,14 @@
 
     <script>
 
+flatpickr('#fechaNacimiento', {
+    locale: 'es',
+    dateFormat: 'Y-m-d',
+    altInput: true,
+    altFormat: 'd/m/Y',
+    allowInput: false,
+});
+
 document.getElementById("searchInput").addEventListener("keyup", function() {
     let filter = this.value.toLowerCase();
     let rows = document.querySelectorAll("table tbody tr");
@@ -156,5 +172,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+{% include '_footer.html' %}
 </body>
 </html>

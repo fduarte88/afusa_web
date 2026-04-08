@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Administrar Usuarios</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .flash-ok    { background:#e6f4ea; color:#2a7a2a; padding:8px 14px; border-radius:5px; margin-bottom:12px; font-size:13px; }
+        .flash-error { background:#fde8e8; color:#c0392b; padding:8px 14px; border-radius:5px; margin-bottom:12px; font-size:13px; }
+        .badge-admin    { background:#2c5f8a; color:#fff; padding:2px 10px; border-radius:10px; font-size:11px; }
+        .badge-operador { background:#888;    color:#fff; padding:2px 10px; border-radius:10px; font-size:11px; }
+        .badge-inactivo { background:#ccc;    color:#555; padding:2px 10px; border-radius:10px; font-size:11px; }
+        .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; }
+        .modal-box { background:#fff; width:380px; margin:8rem auto; padding:24px; border-radius:8px; box-shadow:0 0 12px rgba(0,0,0,0.3); }
+        .modal-box h3 { margin-top:0; }
+        .form-g { display:flex; flex-direction:column; gap:10px; }
+        .form-g label { font-size:13px; font-weight:bold; margin-bottom:2px; }
+        .form-g input, .form-g select { padding:7px 10px; border:1px solid #ccc; border-radius:5px; font-size:13px; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <ul>
+            <li><a href="{{ url_for('home') }}">Home</a></li>
+            <li><a href="{{ url_for('index') }}">Jugadores</a></li>
+            <li class="dropdown">
+                <a href="#">Operaciones ▾</a>
+                <ul class="submenu">
+                    <li><a href="{{ url_for('caja') }}">Registros de Caja</a></li>
+                    <li><a href="{{ url_for('informes') }}">Informes Generales</a></li>
+                </ul>
+            </li>
+            <li><a href="{{ url_for('about') }}">Acerca de</a></li>
+            {% if current_user.rol == 'admin' %}
+            <li><a href="{{ url_for('usuarios') }}" style="color:#f0c040;">Usuarios</a></li>
+            {% endif %}
+            <li><a href="{{ url_for('logout') }}">Salir ({{ current_user.username }})</a></li>
+        </ul>
+    </nav>
+{% include '_pageheader.html' %}
+
+    <div style="margin:30px;">
+        <h1>Administrar Usuarios</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for cat, msg in messages %}
+        <div class="flash-{{ cat }}">{{ msg }}</div>
+        {% endfor %}
+        {% endwith %}
+
+        <!-- Formulario nuevo usuario -->
+        <div style="border:1px solid #ccc; border-radius:8px; padding:20px; max-width:460px; margin-bottom:28px;">
+            <h3 style="margin-top:0;">Nuevo Usuario</h3>
+            <form action="{{ url_for('add_usuario') }}" method="POST" class="form-g">
+                <div>
+                    <label>Usuario</label>
+                    <input type="text" name="username" required style="width:100%;">
+                </div>
+                <div>
+                    <label>Contraseña</label>
+                    <input type="password" name="password" required style="width:100%;">
+                </div>
+                <div>
+                    <label>Rol</label>
+                    <select name="rol" style="width:100%;">
+                        <option value="operador">Operador (solo lectura)</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                <div><button type="submit" style="padding:8px 20px; background:#2c5f8a; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Crear Usuario</button></div>
+            </form>
+        </div>
+
+        <!-- Listado -->
+        <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:13px;">
+            <thead style="background:#2c5f8a; color:#fff;">
+                <tr><th>#</th><th>Usuario</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr>
+            </thead>
+            <tbody>
+            {% for u in usuarios %}
+            <tr>
+                <td>{{ u.id }}</td>
+                <td>{{ u.username }}</td>
+                <td><span class="badge-{{ u.rol }}">{{ u.rol }}</span></td>
+                <td>{% if u.activo %}<span style="color:green;">Activo</span>{% else %}<span class="badge-inactivo">Inactivo</span>{% endif %}</td>
+                <td style="white-space:nowrap;">
+                    <button onclick="abrirEditar({{ u.id }}, '{{ u.username }}', '{{ u.rol }}', {{ '1' if u.activo else '0' }})"
+                            style="font-size:11px; padding:2px 8px; cursor:pointer;">Editar</button>
+                    {% if u.id != current_user.id %}
+                    <a href="{{ url_for('delete_usuario', id=u.id) }}"
+                       onclick="return confirm('¿Eliminar usuario {{ u.username }}?')"
+                       style="color:red; font-size:11px; margin-left:6px;">Eliminar</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Modal editar -->
+    <div id="modalEditar" class="modal-bg">
+        <div class="modal-box">
+            <h3>Editar Usuario</h3>
+            <form id="formEditar" method="POST" class="form-g">
+                <div>
+                    <label>Usuario</label>
+                    <input type="text" id="ed_username" disabled style="background:#f5f5f5;">
+                </div>
+                <div>
+                    <label>Nueva contraseña <span style="font-weight:normal; color:#888;">(dejar vacío para no cambiar)</span></label>
+                    <input type="password" name="password">
+                </div>
+                <div>
+                    <label>Rol</label>
+                    <select name="rol" id="ed_rol">
+                        <option value="operador">Operador</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Estado</label>
+                    <select name="activo" id="ed_activo">
+                        <option value="1">Activo</option>
+                        <option value="0">Inactivo</option>
+                    </select>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:6px;">
+                    <button type="submit" style="padding:8px 20px; background:#2c5f8a; color:#fff; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Guardar</button>
+                    <button type="button" onclick="document.getElementById('modalEditar').style.display='none'"
+                            style="padding:8px 16px; background:#aaa; color:#fff; border:none; border-radius:5px; cursor:pointer;">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+    function abrirEditar(id, username, rol, activo) {
+        document.getElementById('formEditar').action = '/usuarios/edit/' + id;
+        document.getElementById('ed_username').value = username;
+        document.getElementById('ed_rol').value = rol;
+        document.getElementById('ed_activo').value = String(activo);
+        document.getElementById('modalEditar').style.display = 'block';
+    }
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') document.getElementById('modalEditar').style.display = 'none';
+    });
+    </script>
+{% include '_footer.html' %}
+</body>
+</html>

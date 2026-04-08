@@ -1,18 +1,26 @@
+/* ===== Base ===== */
 body {
-    font-family: Arial, sans-serif;
-    margin: 20px;
-    background-color: #f5f5f5;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    margin: 0;
+    background-color: #f0f4f8;
+    color: #2c3e50;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
 h1, h2 {
-    color: #333;
+    color: #2c3e50;
 }
+
+h1 { font-size: 22px; margin-bottom: 18px; }
+h2 { font-size: 17px; }
 
 form {
     background-color: #fff;
     padding: 20px;
-    border-radius: 5px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(44,95,138,0.08);
     margin-bottom: 20px;
 }
 
@@ -21,30 +29,45 @@ label {
     width: 150px;
     margin-bottom: 10px;
     font-weight: bold;
+    font-size: 13px;
 }
 
 input[type="text"],
 input[type="number"],
 input[type="date"] {
     width: 250px;
-    padding: 5px;
+    padding: 6px 10px;
     margin-bottom: 10px;
-    border: 1px solid #ddd;
-    border-radius: 3px;
+    border: 1px solid #c8d4e0;
+    border-radius: 5px;
+    font-size: 13px;
+    transition: border-color 0.2s;
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+input[type="date"]:focus {
+    outline: none;
+    border-color: #2c5f8a;
+    box-shadow: 0 0 0 2px rgba(44,95,138,0.12);
 }
 
 button {
-    background-color: #4CAF50;
+    background-color: #2c5f8a;
     color: white;
-    padding: 10px 15px;
+    padding: 9px 16px;
     border: none;
-    border-radius: 4px;
+    border-radius: 5px;
     cursor: pointer;
     margin-top: 10px;
+    font-size: 13px;
+    font-weight: bold;
+    transition: background-color 0.2s, box-shadow 0.2s;
 }
 
 button:hover {
-    background-color: #45a049;
+    background-color: #1e4a6e;
+    box-shadow: 0 2px 8px rgba(44,95,138,0.18);
 }
 
 table {
@@ -52,43 +75,53 @@ table {
     border-collapse: collapse;
     margin-top: 20px;
     background-color: #fff;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(44,95,138,0.08);
+    border-radius: 8px;
+    overflow: hidden;
 }
 
 th, td {
-    padding: 12px 15px;
+    padding: 10px 14px;
     text-align: left;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid #e8eef4;
+    font-size: 13px;
 }
 
 th {
-    background-color: #f2f2f2;
+    background-color: #2c5f8a;
+    color: #fff;
     font-weight: bold;
+    font-size: 12px;
+    letter-spacing: 0.03em;
 }
 
-tr:hover {
-    background-color: #f9f9f9;
+tr:last-child td { border-bottom: none; }
+
+tr:hover td {
+    background-color: #f4f8fc;
 }
 
 a {
-    color: #e74c3c;
+    color: #2c5f8a;
     text-decoration: none;
 }
 
 a:hover {
     text-decoration: underline;
+    color: #1e4a6e;
 }
 
 hr {
     margin: 30px 0;
     border: 0;
-    border-top: 1px solid #ddd;
+    border-top: 1px solid #dde4ec;
 }
 
-/* Navbar personalizada */
+/* ===== Navbar ===== */
 .navbar {
-    background-color: #333;   /* fondo gris oscuro */
-    padding: 10px 20px;
+    background: linear-gradient(90deg, #1e3a52 0%, #2c5f8a 100%);
+    padding: 0 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
 }
 
 .navbar ul {
@@ -96,7 +129,8 @@ hr {
     margin: 0;
     padding: 0;
     display: flex;
-    gap: 20px;
+    gap: 4px;
+    align-items: center;
 }
 
 .navbar li {
@@ -105,19 +139,22 @@ hr {
 
 .navbar a {
     text-decoration: none;
-    color: #f2f2f2;
-    font-weight: bold;
-    padding: 6px 12px;
+    color: #dce9f5;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 12px 14px;
+    display: inline-block;
     border-radius: 4px;
-    transition: background-color 0.3s;
+    transition: background-color 0.2s, color 0.2s;
 }
 
 .navbar a:hover {
-    background-color: #555;
-    color: white;
+    background-color: rgba(255,255,255,0.12);
+    color: #fff;
+    text-decoration: none;
 }
 
-/* Estilo para dropdown */
+/* ===== Dropdown ===== */
 .dropdown {
     position: relative;
 }
@@ -125,33 +162,102 @@ hr {
 .dropdown .submenu {
     display: none;
     position: absolute;
-    background-color: #333;
+    background: #1e3a52;
     margin: 0;
-    padding: 0;
+    padding: 6px 0;
     list-style: none;
-    min-width: 160px;
+    min-width: 190px;
     z-index: 1000;
+    border-radius: 0 0 7px 7px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.18);
 }
 
 .dropdown .submenu li a {
     display: block;
-    padding: 8px 12px;
-    color: #f2f2f2;
+    padding: 9px 16px;
+    color: #dce9f5;
     text-decoration: none;
+    font-size: 13px;
 }
 
 .dropdown .submenu li a:hover {
-    background-color: #555;
+    background-color: rgba(255,255,255,0.10);
+    color: #fff;
 }
 
-/* Mostrar el submenú al pasar el mouse */
 .dropdown:hover .submenu {
     display: block;
 }
 
+/* ===== Page header (date bar) ===== */
+.page-header {
+    background: #fff;
+    border-bottom: 1px solid #dde4ec;
+    padding: 8px 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #7a8fa6;
+    box-shadow: 0 1px 4px rgba(44,95,138,0.06);
+}
 
-  .form-row{ display:flex; align-items:center; margin-bottom:12px; }
-  .form-row label{ width:160px; margin-right:12px; }  /* ancho fijo para todas las etiquetas */
-  .form-row .field{ flex:1; display:flex; gap:12px; } /* contenedor de inputs */
-  .form-row .short{ width:140px; }    
-  
+.page-header-title {
+    font-weight: 700;
+    color: #2c5f8a;
+    letter-spacing: 0.04em;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.page-header-date {
+    color: #7a8fa6;
+    font-size: 12px;
+}
+
+/* ===== Footer ===== */
+.site-footer {
+    margin-top: auto;
+    background: linear-gradient(90deg, #1e3a52 0%, #2c5f8a 100%);
+    color: rgba(220,233,245,0.75);
+    text-align: center;
+    padding: 10px;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+}
+
+/* ===== Main content wrapper ===== */
+.main-content {
+    flex: 1;
+}
+
+/* ===== Form rows ===== */
+.form-row { display:flex; align-items:center; margin-bottom:12px; }
+.form-row label { width:160px; margin-right:12px; }
+.form-row .field { flex:1; display:flex; gap:12px; }
+.form-row .short { width:140px; }
+
+/* ===== Tab system ===== */
+.tab-btn {
+    padding: 7px 18px;
+    border: 1px solid #c8d4e0;
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    background: #eef2f7;
+    color: #5a7a99;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: background 0.15s, color 0.15s;
+}
+
+.tab-btn.active {
+    background: #fff;
+    color: #2c5f8a;
+    border-color: #c8d4e0;
+}
+
+.tab-btn:hover:not(.active) {
+    background: #dde8f2;
+    color: #2c5f8a;
+}

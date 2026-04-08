@@ -31,7 +31,7 @@
     <!-- Navbar -->
     <nav class="navbar">
         <ul>
-            <li><a href="{{ url_for('index') }}">Home</a></li>
+            <li><a href="{{ url_for('home') }}">Home</a></li>
             <li><a href="{{ url_for('index') }}">Jugadores</a></li>
             <li class="dropdown">
                 <a href="#">Operaciones ▾</a>
@@ -41,8 +41,13 @@
                 </ul>
             </li>
             <li><a href="{{ url_for('about') }}">Acerca de</a></li>
+            {% if current_user.rol == 'admin' %}
+            <li><a href="{{ url_for('usuarios') }}" style="color:#f0c040;">Usuarios</a></li>
+            {% endif %}
+            <li><a href="{{ url_for('logout') }}" style="color:#ccc;">Salir ({{ current_user.username }})</a></li>
         </ul>
     </nav>
+{% include '_pageheader.html' %}
 
     <div style="display:flex; align-items:flex-end; justify-content:space-between;">
         <h1 style="margin-bottom:0;">Registros de Caja</h1>
@@ -771,5 +776,6 @@
     }
     </script>
 
+{% include '_footer.html' %}
 </body>
 </html>

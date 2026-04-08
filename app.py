@@ -1,5 +1,8 @@
-from flask import Flask, render_template, request, redirect, url_for, Response
+from flask import Flask, render_template, request, redirect, url_for, Response, flash
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+from functools import wraps
 from datetime import datetime
 from flask import jsonify
 import io
@@ -15,8 +18,13 @@ app = Flask(__name__)
 # Configurar conexión a PostgreSQL
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql+psycopg://postgres:afusa2024@localhost:5432/afusa'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SECRET_KEY'] = 'afusa_secret_2024'
 
 db = SQLAlchemy(app)
+
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Iniciá sesión para continuar.'
 
 # Modelo
 class Jugador(db.Model):
@@ -69,11 +77,43 @@ class Aporte(db.Model):
 
     jugador     = db.relationship('Jugador', backref=db.backref('aportes', lazy=True))
     tipo_aporte = db.relationship('TipoAporte', backref=db.backref('aportes', lazy=True))
-    
+
+
+class Usuario(UserMixin, db.Model):
+    __tablename__ = 'usuario'
+    id       = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password = db.Column(db.String(256), nullable=False)
+    rol      = db.Column(db.String(20), nullable=False, default='operador')  # 'admin' | 'operador'
+    activo   = db.Column(db.Boolean, default=True, nullable=False)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return db.session.get(Usuario, int(user_id))
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.rol != 'admin':
+            flash('Acceso restringido a administradores.', 'error')
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated
+
+def operador_blocked(f):
+    """Bloquea acciones de escritura para el rol operador."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if current_user.rol == 'operador':
+            flash('Tu rol no permite realizar esta acción.', 'error')
+            return redirect(request.referrer or url_for('index'))
+        return f(*args, **kwargs)
+    return decorated
 
 
 # Ruta principal: lista y formulario
 @app.route('/')
+@login_required
 def index():
     jugadores = Jugador.query.order_by(Jugador.nombreJugador.asc()).all()
     
@@ -85,6 +125,8 @@ def index():
 
 # Crear jugador
 @app.route('/add', methods=['POST'])
+@login_required
+@operador_blocked
 def add_jugador():
      # Buscar el último código
     ultimo = db.session.query(db.func.max(Jugador.codJugador)).scalar()
@@ -110,6 +152,8 @@ def add_jugador():
 
 # Eliminar jugador
 @app.route('/delete/<int:id>')
+@login_required
+@operador_blocked
 def delete_jugador(id):
     jugador = Jugador.query.get_or_404(id)
     db.session.delete(jugador)
@@ -118,6 +162,7 @@ def delete_jugador(id):
 
 # Editar jugador (cargar datos en formulario)
 @app.route('/edit/<int:id>')
+@login_required
 def edit_jugador(id):
     jugadores = Jugador.query.all()
     jugador = Jugador.query.get_or_404(id)
@@ -125,6 +170,8 @@ def edit_jugador(id):
 
 # Guardar edición
 @app.route('/update/<int:id>', methods=['POST'])
+@login_required
+@operador_blocked
 def update_jugador(id):
     jugador = Jugador.query.get_or_404(id)
 
@@ -147,6 +194,7 @@ except:
     pass  # si no existe el locale en Windows/Linux, no se rompe
 
 @app.route('/aportes', methods=['GET', 'POST'])
+@login_required
 def aportes():
     jugadores = Jugador.query.order_by(Jugador.nombreJugador.asc()).all()
     tipos = TipoAporte.query.order_by(TipoAporte.descripcion.asc()).all()
@@ -200,6 +248,7 @@ def aportes():
     return render_template('aportes.html', jugadores=jugadores, tipos=tipos, datetime=datetime, aportes=aportes_data)
 
 @app.route('/caja')
+@login_required
 def caja():
     jugadores   = Jugador.query.order_by(Jugador.nombreJugador.asc()).all()
     tipos_ap    = TipoAporte.query.order_by(TipoAporte.descripcion.asc()).all()
@@ -264,6 +313,8 @@ def caja():
 
 
 @app.route('/aportes/delete/<int:id>')
+@login_required
+@operador_blocked
 def delete_aporte(id):
     aporte = Aporte.query.get_or_404(id)
     fecha_str = aporte.fechaAporte.strftime("%Y-%m-%d")
@@ -272,6 +323,8 @@ def delete_aporte(id):
     return redirect(url_for('caja') + f'?tab=aportes&fecha_ap={fecha_str}')
 
 @app.route('/aportes/update/<int:id>', methods=['POST'])
+@login_required
+@operador_blocked
 def update_aporte(id):
     aporte = Aporte.query.get_or_404(id)
     tipo_id = request.form.get('tipo_aporte')
@@ -285,6 +338,7 @@ def update_aporte(id):
     return redirect(url_for('caja') + f'?tab=aportes&fecha_ap={fecha_str}')
 
 @app.route('/aportes/pdf')
+@login_required
 def aportes_pdf():
     fecha_str = request.args.get('fecha', '')
     try:
@@ -397,6 +451,8 @@ def aportes_pdf():
                     headers={'Content-Disposition': f'inline; filename="{nombre_archivo}"'})
 
 @app.route('/egresos', methods=['GET', 'POST'])
+@login_required
+@operador_blocked
 def egresos():
     tipos = TipoEgreso.query.order_by(TipoEgreso.descripcion.asc()).all()
 
@@ -439,6 +495,8 @@ def egresos():
     return render_template('egresos.html', tipos=tipos, egresos=egresos_data, datetime=datetime)
 
 @app.route('/egresos/tipo/add', methods=['POST'])
+@login_required
+@operador_blocked
 def add_tipo_egreso():
     desc = request.form.get('descripcion', '').strip()
     if desc:
@@ -449,6 +507,8 @@ def add_tipo_egreso():
     return redirect(url_for('caja') + '?tab=egresos')
 
 @app.route('/egresos/tipo/delete/<int:id>')
+@login_required
+@operador_blocked
 def delete_tipo_egreso(id):
     tipo = TipoEgreso.query.get_or_404(id)
     if tipo.egresos:
@@ -458,6 +518,8 @@ def delete_tipo_egreso(id):
     return redirect(url_for('caja') + '?tab=egresos')
 
 @app.route('/egresos/delete/<int:id>')
+@login_required
+@operador_blocked
 def delete_egreso(id):
     egreso = Egreso.query.get_or_404(id)
     fecha_str = egreso.fechaEgreso.strftime("%Y-%m-%d")
@@ -466,6 +528,8 @@ def delete_egreso(id):
     return redirect(url_for('caja') + f'?tab=egresos&fecha_eg={fecha_str}')
 
 @app.route('/egresos/update/<int:id>', methods=['POST'])
+@login_required
+@operador_blocked
 def update_egreso(id):
     egreso  = Egreso.query.get_or_404(id)
     tipo_id = request.form.get('tipo_egreso')
@@ -479,6 +543,7 @@ def update_egreso(id):
     return redirect(url_for('caja') + f'?tab=egresos&fecha_eg={fecha_str}')
 
 @app.route('/egresos/pdf')
+@login_required
 def egresos_pdf():
     fecha_str = request.args.get('fecha', '')
     try:
@@ -587,6 +652,7 @@ def egresos_pdf():
                     headers={'Content-Disposition': f'inline; filename="egresos_{fecha_str}.pdf"'})
 
 @app.route('/caja/pdf/jornada')
+@login_required
 def caja_pdf_jornada():
     fecha_str = request.args.get('fecha', '')
     try:
@@ -772,10 +838,12 @@ def caja_pdf_jornada():
                     headers={'Content-Disposition': f'inline; filename="jornada_{fecha_str}.pdf"'})
 
 @app.route('/informes')
+@login_required
 def informes():
     return render_template('informes.html')
 
 @app.route('/api/mensualidades/<int:jugador_id>/<int:anio>')
+@login_required
 def api_mensualidades(jugador_id, anio):
     """Devuelve el estado de pago de mensualidades de un jugador en un año."""
     import re
@@ -934,6 +1002,7 @@ def _pdf_informe(lista_ap, lista_eg, titulo, subtitulo):
     return buffer
 
 @app.route('/informes/pdf/periodo')
+@login_required
 def informes_pdf_periodo():
     desde_str = request.args.get('desde', '')
     hasta_str = request.args.get('hasta', '')
@@ -956,6 +1025,7 @@ def informes_pdf_periodo():
                     headers={'Content-Disposition': f'inline; filename="informe_periodo_{desde_str}_{hasta_str}.pdf"'})
 
 @app.route('/informes/pdf/periodo/detalle')
+@login_required
 def informes_pdf_periodo_detalle():
     desde_str = request.args.get('desde', '')
     hasta_str = request.args.get('hasta', '')
@@ -1073,6 +1143,7 @@ def informes_pdf_periodo_detalle():
                     headers={'Content-Disposition': f'inline; filename="detalle_periodo_{desde_str}_{hasta_str}.pdf"'})
 
 @app.route('/informes/pdf/general')
+@login_required
 def informes_pdf_general():
     lista_ap = Aporte.query.all()
     lista_eg = Egreso.query.all()
@@ -1081,6 +1152,7 @@ def informes_pdf_general():
                     headers={'Content-Disposition': 'inline; filename="informe_general.pdf"'})
 
 @app.route('/informes/pdf/mensualidades')
+@login_required
 def informes_pdf_mensualidades():
     from sqlalchemy import extract
     anio = request.args.get('anio', datetime.now().year, type=int)
@@ -1219,6 +1291,7 @@ def informes_pdf_mensualidades():
                     headers={'Content-Disposition': f'inline; filename="mensualidades_{anio}.pdf"'})
 
 @app.route('/informes/pdf/mensualidades/detalle')
+@login_required
 def informes_pdf_mensualidades_detalle():
     from sqlalchemy import extract
     import re as _re
@@ -1358,11 +1431,13 @@ def informes_pdf_mensualidades_detalle():
                     headers={'Content-Disposition': f'inline; filename="mensualidades_detalle_{anio}.pdf"'})
 
 @app.route('/about')
+@login_required
 def about():
     fecha_creacion = datetime.now().strftime("%d/%m/%Y")
     return render_template('about.html', fecha_creacion=fecha_creacion)
 
 @app.route('/api/jugador/<codigo>')
+@login_required
 def api_jugador_por_codigo(codigo):
     # si codJugador es numérico en la DB, casteamos
     clave = int(codigo) if codigo.isdigit() else codigo
@@ -1374,6 +1449,87 @@ def api_jugador_por_codigo(codigo):
     jid = getattr(j, 'id', None) or getattr(j, 'idJugador', None)
 
     return jsonify({"found": True, "id": jid, "codigo": getattr(j, 'codJugador', codigo), "nombre": nombre})
+
+@app.route('/home')
+@login_required
+def home():
+    return render_template('home.html', now=__import__('datetime').datetime.now())
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    error = None
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        user = Usuario.query.filter_by(username=username, activo=True).first()
+        if user and check_password_hash(user.password, password):
+            login_user(user)
+            return redirect(url_for('home'))
+        error = 'Usuario o contraseña incorrectos.'
+    return render_template('login.html', error=error, now=__import__('datetime').datetime.now())
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+@app.route('/usuarios')
+@login_required
+@admin_required
+def usuarios():
+    lista = Usuario.query.order_by(Usuario.username).all()
+    return render_template('usuarios.html', usuarios=lista)
+
+@app.route('/usuarios/add', methods=['POST'])
+@login_required
+@admin_required
+def add_usuario():
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '').strip()
+    rol      = request.form.get('rol', 'operador')
+    if not username or not password:
+        flash('Usuario y contraseña son requeridos.', 'error')
+        return redirect(url_for('usuarios'))
+    if Usuario.query.filter_by(username=username).first():
+        flash('El nombre de usuario ya existe.', 'error')
+        return redirect(url_for('usuarios'))
+    db.session.add(Usuario(username=username, password=generate_password_hash(password), rol=rol))
+    db.session.commit()
+    flash('Usuario creado correctamente.', 'ok')
+    return redirect(url_for('usuarios'))
+
+@app.route('/usuarios/edit/<int:id>', methods=['POST'])
+@login_required
+@admin_required
+def edit_usuario(id):
+    user = db.session.get(Usuario, id)
+    if not user:
+        return redirect(url_for('usuarios'))
+    user.rol    = request.form.get('rol', user.rol)
+    user.activo = request.form.get('activo') == '1'
+    nueva_pw    = request.form.get('password', '').strip()
+    if nueva_pw:
+        user.password = generate_password_hash(nueva_pw)
+    db.session.commit()
+    flash('Usuario actualizado.', 'ok')
+    return redirect(url_for('usuarios'))
+
+@app.route('/usuarios/delete/<int:id>')
+@login_required
+@admin_required
+def delete_usuario(id):
+    if id == current_user.id:
+        flash('No podés eliminar tu propio usuario.', 'error')
+        return redirect(url_for('usuarios'))
+    user = db.session.get(Usuario, id)
+    if user:
+        db.session.delete(user)
+        db.session.commit()
+    flash('Usuario eliminado.', 'ok')
+    return redirect(url_for('usuarios'))
 
 if __name__ == '__main__':
     app.run(debug=True)
