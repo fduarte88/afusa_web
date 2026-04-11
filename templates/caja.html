@@ -86,13 +86,14 @@
 
             <div class="form-row">
                 <label for="tipo_aporte">Tipo de Aporte:</label>
-                <div class="field">
+                <div class="field" style="flex-direction:column; gap:4px;">
                     <select id="tipo_aporte" name="tipo_aporte" class="form-control select-long" required onchange="onTipoAporteChange(this)">
                         <option value="" disabled selected>Seleccione...</option>
                         {% for t in tipos_ap %}
                         <option value="{{ t.idTipoAporte }}" data-valor="{{ t.valor }}" data-desc="{{ t.descripcion }}">{{ t.descripcion }}</option>
                         {% endfor %}
                     </select>
+                    <span id="ultima_jornada_label" style="display:none; font-size:11px; color:#5a7a99; font-style:italic;"></span>
                 </div>
             </div>
 
@@ -421,6 +422,13 @@
       {% endfor %}
     ];
 
+    // --- Actividad jornada por jugador (id -> {fechas: [...], total: N}) ---
+    const ULTIMA_JORNADA = {
+      {% for jid, info in ultima_jornada.items() %}
+        {{ jid }}: { fechas: [{% for f in info.fechas %}"{{ f }}"{% if not loop.last %},{% endif %}{% endfor %}], total: {{ info.total }} }{% if not loop.last %},{% endif %}
+      {% endfor %}
+    };
+
     // --- Tabs ---
     function switchTab(tab) {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -436,6 +444,27 @@
         switchTab(p === 'egresos' ? 'egresos' : 'aportes');
     })();
 
+    // --- Mostrar últimas participaciones en jornada ---
+    function actualizarUltimaJornada() {
+        const sel = document.getElementById('tipo_aporte');
+        const desc = sel.options[sel.selectedIndex]?.getAttribute('data-desc') || '';
+        const label = document.getElementById('ultima_jornada_label');
+        if (desc === 'Aporte Jornada') {
+            const jugadorId = document.getElementById('idJugador').value;
+            const info = jugadorId ? ULTIMA_JORNADA[jugadorId] : null;
+            if (info) {
+                label.innerHTML =
+                    `<span style="color:#2c5f8a; font-weight:600;">Últimas participaciones:</span> ${info.fechas.join(', ')}<br>` +
+                    `<span style="color:#2c5f8a; font-weight:600;">Partidos disputados:</span> ${info.total}`;
+            } else {
+                label.innerHTML = '<span style="color:#aaa;">Sin partidos registrados en el año</span>';
+            }
+            label.style.display = 'block';
+        } else {
+            label.style.display = 'none';
+        }
+    }
+
     // --- Tipo aporte change (auto-importe + trigger mensualidad) ---
     function onTipoAporteChange(select) {
         autoImporte(select);
@@ -450,6 +479,7 @@
             document.getElementById('mes_destino').value = '';
             document.getElementById('mens_badge').style.display = 'none';
         }
+        actualizarUltimaJornada();
     }
 
     // --- Auto-importe Aportes (nuevo) ---
@@ -629,6 +659,7 @@
                 break;
             }
         }
+        actualizarUltimaJornada();
     }
 
     function syncDesdeCodigo() {

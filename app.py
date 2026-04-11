@@ -418,10 +418,46 @@ def caja():
             "fechaRaw": e.fechaEgreso.strftime("%Y-%m-%d"),
         })
 
+    # Última fecha de Aporte Jornada por jugador (año en curso)
+    from sqlalchemy import extract
+    _meses = ['enero','febrero','marzo','abril','mayo','junio',
+              'julio','agosto','septiembre','octubre','noviembre','diciembre']
+    _dias  = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo']
+    def _fecha_larga(d):
+        return f"{_dias[d.weekday()]} {d.day} de {_meses[d.month-1]} de {d.year}".capitalize()
+
+    tipo_jornada = TipoAporte.query.filter_by(descripcion='Aporte Jornada').first()
+    ultima_jornada = {}
+    if tipo_jornada:
+        anio_caja = datetime.now().year
+        # Obtener todos los aportes de jornada del año, ordenados desc por fecha
+        aportes_jornada = db.session.query(
+            Aporte.idJugador,
+            Aporte.fechaAporte
+        ).filter(
+            Aporte.codTipoAporte == tipo_jornada.idTipoAporte,
+            extract('year', Aporte.fechaAporte) == anio_caja
+        ).order_by(Aporte.idJugador, Aporte.fechaAporte.desc()).all()
+
+        # Agrupar por jugador: últimas 2 fechas únicas + conteo
+        from collections import defaultdict
+        jornadas_map = defaultdict(list)
+        for row in aportes_jornada:
+            jornadas_map[row.idJugador].append(row.fechaAporte)
+
+        for jid, fechas in jornadas_map.items():
+            # fechas ya ordenadas desc; tomar las 2 primeras únicas
+            unicas = list(dict.fromkeys(fechas))[:2]
+            ultima_jornada[jid] = {
+                'fechas': [_fecha_larga(f) for f in unicas],
+                'total': len(fechas)
+            }
+
     return render_template('caja.html',
         jugadores=jugadores, tipos_ap=tipos_ap, tipos_eg=tipos_eg,
         aportes=aportes_data, egresos=egresos_data, datetime=datetime,
-        fecha_ap=fecha_ap_str, fecha_eg=fecha_eg_str)
+        fecha_ap=fecha_ap_str, fecha_eg=fecha_eg_str,
+        ultima_jornada=ultima_jornada)
 
 
 @app.route('/aportes/delete/<int:id>')
