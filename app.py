@@ -38,6 +38,7 @@ class Jugador(db.Model):
     fechaNacimiento = db.Column(db.Date, nullable=False)
     adddate = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
     alias = db.Column(db.String(50), nullable=True)
+    activo = db.Column(db.Boolean, nullable=False, default=True, server_default='true')
 
     def __repr__(self):
         return f"<Jugador {self.nombreJugador} {self.apellidoJugador}>"
@@ -220,6 +221,105 @@ def jugadores_pdf():
     return Response(buf.read(), mimetype='application/pdf',
                     headers={'Content-Disposition': 'inline; filename="jugadores.pdf"'})
 
+# PDF Registro de Asistencias (oficio)
+@app.route('/jugadores/pdf/asistencias')
+@login_required
+def jugadores_pdf_asistencias():
+    from reportlab.lib.pagesizes import portrait
+    from reportlab.lib.units import inch
+    from reportlab.platypus import KeepTogether
+
+    anio_actual = datetime.now().year
+    meses_n = ['enero','febrero','marzo','abril','mayo','junio',
+               'julio','agosto','septiembre','octubre','noviembre','diciembre']
+    dias_n  = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo']
+    hoy = datetime.now()
+    fecha_larga = f"{dias_n[hoy.weekday()]} {hoy.day} de {meses_n[hoy.month-1]} de {hoy.year}".capitalize()
+
+    jugadores = Jugador.query.filter_by(activo=True)\
+                    .order_by(Jugador.nombreJugador.asc(), Jugador.apellidoJugador.asc()).all()
+
+    OFICIO = (8.5*inch, 13*inch)
+    margen = 1.5*cm
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=portrait(OFICIO),
+                            leftMargin=margen, rightMargin=margen,
+                            topMargin=margen, bottomMargin=margen)
+
+    styles = getSampleStyleSheet()
+    afusa_style = ParagraphStyle('afusa', parent=styles['Normal'], fontSize=14,
+                                 fontName='Helvetica-Bold', alignment=TA_CENTER,
+                                 textColor=colors.HexColor('#2c5f8a'), spaceAfter=2)
+    titulo_style = ParagraphStyle('tit', parent=styles['Heading2'], fontSize=11,
+                                  alignment=TA_CENTER, spaceAfter=4)
+    fecha_style  = ParagraphStyle('fec', parent=styles['Normal'], fontSize=10,
+                                  alignment=TA_CENTER, spaceAfter=10)
+
+    elementos = []
+    elementos.append(Paragraph(f"AFUSA {anio_actual} — Registro de Asistencias", afusa_style))
+    elementos.append(HRFlowable(width="100%", thickness=0.4, color=colors.HexColor('#2c5f8a'),
+                                spaceBefore=6, spaceAfter=8))
+    elementos.append(Paragraph(fecha_larga, fecha_style))
+
+    # Ancho disponible: 8.5in - 2*margen
+    ancho = 8.5*inch - 2*margen
+    # Columnas: ID, Nombre Apellido, Aporte Jornada, Cuota, Tarjetas, Nro, OBS
+    col_w = [1.2*cm, 6.8*cm, 3*cm, 2.2*cm, 2.2*cm, 1.5*cm, 0]
+    col_w[-1] = ancho - sum(col_w[:-1])   # OBS ocupa el resto
+
+    fila_alto = 0.85*cm   # altura para escribir
+
+    encabezado = [
+        Paragraph('<b>ID</b>',                ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)),
+        Paragraph('<b>Nombre y Apellido</b>', ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)),
+        Paragraph('<b>Aporte\nJornada</b>',   ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)),
+        Paragraph('<b>Cuota</b>',             ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)),
+        Paragraph('<b>Tarjetas</b>',          ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)),
+        Paragraph('<b>Nro</b>',               ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)),
+        Paragraph('<b>OBS</b>',               ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)),
+    ]
+
+    filas = [encabezado]
+    for j in jugadores:
+        nombre = f"{j.nombreJugador} {j.apellidoJugador}"
+        filas.append([str(j.codJugador), nombre, '', '', '', '', ''])
+
+    n_datos = len(filas) - 1
+    row_heights = [0.9*cm] + [fila_alto] * n_datos
+
+    tabla = Table(filas, colWidths=col_w, rowHeights=row_heights, repeatRows=1)
+    borde = colors.HexColor('#5a7a99')
+    tabla.setStyle(TableStyle([
+        # Encabezado
+        ('BACKGROUND',    (0,0), (-1,0),  colors.HexColor('#5b9bd5')),
+        ('TEXTCOLOR',     (0,0), (-1,0),  colors.white),
+        ('FONTNAME',      (0,0), (-1,0),  'Helvetica-Bold'),
+        ('FONTSIZE',      (0,0), (-1,0),  8),
+        ('ALIGN',         (0,0), (-1,0),  'CENTER'),
+        ('VALIGN',        (0,0), (-1,0),  'MIDDLE'),
+        # Datos
+        ('FONTNAME',      (0,1), (-1,-1), 'Helvetica'),
+        ('FONTSIZE',      (0,1), (-1,-1), 8),
+        ('ALIGN',         (0,1), (0,-1),  'CENTER'),   # ID centrado
+        ('VALIGN',        (0,1), (-1,-1), 'MIDDLE'),
+        ('ROWBACKGROUNDS',(0,1), (-1,-1), [colors.white, colors.HexColor('#f4f8fc')]),
+        # Bordes
+        ('GRID',          (0,0), (-1,-1), 0.5, borde),
+        ('LINEBELOW',     (0,0), (-1,0),  1,   colors.HexColor('#5b9bd5')),
+        # Padding
+        ('TOPPADDING',    (0,0), (-1,-1), 3),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ('LEFTPADDING',   (0,0), (-1,-1), 4),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 4),
+    ]))
+
+    elementos.append(tabla)
+    doc.build(elementos)
+    buf.seek(0)
+    return Response(buf.read(), mimetype='application/pdf',
+                    headers={'Content-Disposition': f'inline; filename="asistencias_{anio_actual}.pdf"'})
+
 # Crear jugador
 @app.route('/add', methods=['POST'])
 @login_required
@@ -293,7 +393,17 @@ def update_jugador(id):
     jugador.numeroDocumento = request.form['numeroDocumento']
     jugador.fechaNacimiento = request.form['fechaNacimiento']
     jugador.alias = request.form.get('alias')
+    jugador.activo = request.form.get('activo', '1') == '1'
 
+    db.session.commit()
+    return redirect(url_for('index'))
+
+@app.route('/jugadores/toggle/<int:id>', methods=['POST'])
+@login_required
+@operador_blocked
+def toggle_jugador(id):
+    jugador = Jugador.query.get_or_404(id)
+    jugador.activo = not jugador.activo
     db.session.commit()
     return redirect(url_for('index'))
 

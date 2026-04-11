@@ -7,6 +7,19 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+    <style>
+        .tabs-jug { display:flex; gap:0; margin-bottom:0; margin-top:12px; }
+        .tab-jug-btn {
+            padding:8px 24px; cursor:pointer; border:1px solid #c8d4e0;
+            background:#eef2f7; font-size:13px; font-weight:bold;
+            border-bottom:none; border-radius:6px 6px 0 0; color:#5a7a99;
+            transition: background 0.15s;
+        }
+        .tab-jug-btn.active { background:#fff; color:#2c5f8a; }
+        .tab-jug-btn:not(.active):hover { background:#dde8f2; }
+        .tab-jug-content { display:none; border:1px solid #c8d4e0; border-radius:0 6px 6px 6px; background:#fff; padding:16px; }
+        .tab-jug-content.active { display:block; }
+    </style>
 </head>
 <body>
     <!-- Menú de navegación -->
@@ -63,6 +76,12 @@
     <label>Alias:</label>
     <input type="text" name="alias" value="{{ jugador_edit.alias if jugador_edit else '' }}"><br>
 
+    <label>Estado:</label>
+    <select name="activo" style="width:140px; padding:5px; border:1px solid #c8d4e0; border-radius:5px;">
+        <option value="1" {{ 'selected' if (not jugador_edit or jugador_edit.activo) else '' }}>Activo</option>
+        <option value="0" {{ 'selected' if (jugador_edit and not jugador_edit.activo) else '' }}>Inactivo</option>
+    </select><br>
+
     <button type="submit">{{ 'Guardar Cambios' if jugador_edit else 'Agregar' }}</button>
     
 
@@ -74,18 +93,35 @@
     <hr>
 
     <!-- Listado de jugadores -->
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
         <h2 style="margin:0;">Listado de Jugadores</h2>
-        <button type="button" onclick="window.open('{{ url_for('jugadores_pdf') }}', '_blank')"
-                style="padding:7px 16px; background:#2a7a2a; color:#fff; border:none; border-radius:5px; cursor:pointer; font-size:13px; font-weight:bold; margin-top:0;">
-            Imprimir Listado
-        </button>
+        <div style="display:flex; gap:8px;">
+            <button type="button" onclick="window.open('{{ url_for('jugadores_pdf') }}', '_blank')"
+                    style="padding:7px 16px; background:#2a7a2a; color:#fff; border:none; border-radius:5px; cursor:pointer; font-size:13px; font-weight:bold;">
+                Imprimir Listado
+            </button>
+            <button type="button" onclick="window.open('{{ url_for('jugadores_pdf_asistencias') }}', '_blank')"
+                    style="padding:7px 16px; background:#2c5f8a; color:#fff; border:none; border-radius:5px; cursor:pointer; font-size:13px; font-weight:bold;">
+                Registro de Asistencias
+            </button>
+        </div>
     </div>
 
     <!-- Cuadro de búsqueda -->
-    <input type="text" id="searchInput" placeholder="Buscar por nombre o apellido..." style="width: 550px; margin-bottom:8px;">
+    <input type="text" id="searchInput" placeholder="Buscar por nombre o apellido..." style="width:550px; margin-bottom:8px;">
 
-    <table border="1" cellpadding="5" cellspacing="0">
+    <!-- Pestañas Activos / Inactivos -->
+    <div class="tabs-jug">
+        <button class="tab-jug-btn active" id="btn-activos" onclick="switchTabJug('activos')">
+            Activos ({{ jugadores|selectattr('activo')|list|length }})
+        </button>
+        <button class="tab-jug-btn" id="btn-inactivos" onclick="switchTabJug('inactivos')">
+            Inactivos ({{ jugadores|rejectattr('activo')|list|length }})
+        </button>
+    </div>
+
+    {% macro tabla_jugadores(lista) %}
+    <table border="1" cellpadding="5" cellspacing="0" style="margin-top:0;">
         <thead>
             <tr>
                 <th>Código</th>
@@ -99,7 +135,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for j in jugadores %}
+            {% for j in lista %}
             <tr>
                 <td>{{ j.codJugador }}</td>
                 <td>{{ j.nombreJugador }}</td>
@@ -110,29 +146,38 @@
                 <td style="text-align:center;">
                     {% if act.partidos %}
                     <span style="font-weight:bold; color:#2c5f8a;">{{ act.partidos }}</span>
-                    {% else %}
-                    <span style="color:#bbb;">—</span>
-                    {% endif %}
+                    {% else %}<span style="color:#bbb;">—</span>{% endif %}
                 </td>
                 <td style="text-align:center;">
-                    {% if act.ultima %}
-                    {{ act.ultima.strftime('%d/%m/%Y') }}
-                    {% else %}
-                    <span style="color:#bbb;">—</span>
-                    {% endif %}
+                    {% if act.ultima %}{{ act.ultima.strftime('%d/%m/%Y') }}
+                    {% else %}<span style="color:#bbb;">—</span>{% endif %}
                 </td>
-                <td>
-                    <a href="{{ url_for('edit_jugador', id=j.id) }}" class="btn btn-primary btn-sm" style="color: #007bff;">Editar</a> |
-                    <a href="{{ url_for('delete_jugador', id=j.id) }}" onclick="return confirm('¿Eliminar este jugador?')">Eliminar</a>
+                <td style="white-space:nowrap;">
+                    <a href="{{ url_for('edit_jugador', id=j.id) }}" style="color:#007bff;">Editar</a> |
+                    <form method="POST" action="{{ url_for('toggle_jugador', id=j.id) }}" style="display:inline;">
+                        <button type="submit" style="background:none; border:none; cursor:pointer; padding:0; font-size:13px;
+                            color:{{ '#c0392b' if j.activo else '#2a7a2a' }};"
+                            title="{{ 'Desactivar' if j.activo else 'Activar' }}"
+                            onclick="return confirm('¿{{ 'Desactivar' if j.activo else 'Activar' }} a {{ j.nombreJugador }}?')">
+                            {{ 'Desactivar' if j.activo else 'Activar' }}
+                        </button>
+                    </form> |
+                    <a href="{{ url_for('delete_jugador', id=j.id) }}" onclick="return confirm('¿Eliminar este jugador?')" style="color:red;">Eliminar</a>
                 </td>
             </tr>
             {% else %}
-            <tr>
-                <td colspan="8">No hay jugadores registrados.</td>
-            </tr>
+            <tr><td colspan="8" style="color:#aaa; text-align:center;">No hay jugadores en esta categoría.</td></tr>
             {% endfor %}
         </tbody>
     </table>
+    {% endmacro %}
+
+    <div class="tab-jug-content active" id="tab-activos">
+        {{ tabla_jugadores(jugadores|selectattr('activo')|list) }}
+    </div>
+    <div class="tab-jug-content" id="tab-inactivos">
+        {{ tabla_jugadores(jugadores|rejectattr('activo')|list) }}
+    </div>
 
     <script>
 
@@ -144,14 +189,22 @@ flatpickr('#fechaNacimiento', {
     allowInput: false,
 });
 
+function switchTabJug(tab) {
+    document.querySelectorAll('.tab-jug-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-jug-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    document.getElementById('btn-' + tab).classList.add('active');
+    // Re-aplicar búsqueda al cambiar de pestaña
+    document.getElementById('searchInput').dispatchEvent(new Event('keyup'));
+}
+
 document.getElementById("searchInput").addEventListener("keyup", function() {
     let filter = this.value.toLowerCase();
-    let rows = document.querySelectorAll("table tbody tr");
-
+    // Solo buscar en la pestaña activa
+    let rows = document.querySelectorAll(".tab-jug-content.active table tbody tr");
     rows.forEach(function(row) {
-        let nombre = row.cells[1]?.textContent.toLowerCase();   // Columna Nombre
-        let apellido = row.cells[2]?.textContent.toLowerCase(); // Columna Apellido
-
+        let nombre  = row.cells[1]?.textContent.toLowerCase();
+        let apellido = row.cells[2]?.textContent.toLowerCase();
         if (nombre && apellido && (nombre.includes(filter) || apellido.includes(filter))) {
             row.style.display = "";
         } else {
