@@ -236,8 +236,22 @@ def jugadores_pdf_asistencias():
     hoy = datetime.now()
     fecha_larga = f"{dias_n[hoy.weekday()]} {hoy.day} de {meses_n[hoy.month-1]} de {hoy.year}".capitalize()
 
+    from sqlalchemy import extract
     jugadores = Jugador.query.filter_by(activo=True)\
                     .order_by(Jugador.nombreJugador.asc(), Jugador.apellidoJugador.asc()).all()
+
+    # Partidos disputados por jugador en el año actual
+    tipo_jornada = TipoAporte.query.filter_by(descripcion='Aporte Jornada').first()
+    partidos_map = {}
+    if tipo_jornada:
+        stats = db.session.query(
+            Aporte.idJugador,
+            db.func.count(Aporte.id).label('total')
+        ).filter(
+            Aporte.codTipoAporte == tipo_jornada.idTipoAporte,
+            extract('year', Aporte.fechaAporte) == anio_actual
+        ).group_by(Aporte.idJugador).all()
+        partidos_map = {r.idJugador: r.total for r in stats}
 
     OFICIO = (8.5*inch, 13*inch)
     margen = 1.5*cm
@@ -264,26 +278,32 @@ def jugadores_pdf_asistencias():
 
     # Ancho disponible: 8.5in - 2*margen
     ancho = 8.5*inch - 2*margen
-    # Columnas: ID, Nombre Apellido, Aporte Jornada, Cuota, Tarjetas, Nro, OBS
-    col_w = [1.2*cm, 6.8*cm, 3*cm, 2.2*cm, 2.2*cm, 1.5*cm, 0]
-    col_w[-1] = ancho - sum(col_w[:-1])   # OBS ocupa el resto
+    # Columnas: #, ID, Nombre Apellido, Partidos, Aporte Jornada, Cuota, Tarjetas, Nro
+    col_w = [0.8*cm, 1.2*cm, 0, 1.6*cm, 3*cm, 2.2*cm, 2.2*cm, 1.8*cm]
+    col_w[2] = ancho - sum(c for c in col_w if c)   # Nombre ocupa el resto
 
     fila_alto = 0.85*cm   # altura para escribir
 
+    h_style = ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)
     encabezado = [
-        Paragraph('<b>ID</b>',                ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)),
-        Paragraph('<b>Nombre y Apellido</b>', ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)),
-        Paragraph('<b>Aporte\nJornada</b>',   ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)),
-        Paragraph('<b>Cuota</b>',             ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)),
-        Paragraph('<b>Tarjetas</b>',          ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)),
-        Paragraph('<b>Nro</b>',               ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)),
-        Paragraph('<b>OBS</b>',               ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)),
+        Paragraph('<b>#</b>',                    h_style),
+        Paragraph('<b>ID</b>',                   h_style),
+        Paragraph('<b>Nombre y Apellido</b>',    h_style),
+        Paragraph(f'<b>Partidos\n{anio_actual}</b>', h_style),
+        Paragraph('<b>Aporte\nJornada</b>',      h_style),
+        Paragraph('<b>Cuota</b>',                h_style),
+        Paragraph('<b>Tarjetas</b>',             h_style),
+        Paragraph('<b>Nro</b>',                  h_style),
     ]
 
+    d_style = ParagraphStyle('d', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER,
+                             textColor=colors.HexColor('#2c5f8a'))
     filas = [encabezado]
-    for j in jugadores:
+    for idx, j in enumerate(jugadores, start=1):
         nombre = f"{j.nombreJugador} {j.apellidoJugador}"
-        filas.append([str(j.codJugador), nombre, '', '', '', '', ''])
+        partidos = partidos_map.get(j.id, 0)
+        partidos_cell = Paragraph(str(partidos) if partidos else '—', d_style)
+        filas.append([str(idx), str(j.codJugador), nombre, partidos_cell, '', '', '', ''])
 
     n_datos = len(filas) - 1
     row_heights = [0.9*cm] + [fila_alto] * n_datos
@@ -334,6 +354,29 @@ def add_jugador():
     documento = request.form['numeroDocumento']
     fechaNacimiento = request.form['fechaNacimiento']  # AAAA-MM-DD
     alias = request.form.get('alias')  # opcional
+
+    # Verificar documento duplicado
+    if Jugador.query.filter_by(numeroDocumento=documento).first():
+        from sqlalchemy import extract
+        jugadores = Jugador.query.order_by(Jugador.nombreJugador.asc()).all()
+        siguiente_codigo = codJugador
+        anio_actual = datetime.now().year
+        tipo_jornada = TipoAporte.query.filter_by(descripcion='Aporte Jornada').first()
+        actividad = {}
+        if tipo_jornada:
+            stats = db.session.query(
+                Aporte.idJugador,
+                db.func.count(Aporte.id).label('partidos'),
+                db.func.max(Aporte.fechaAporte).label('ultima_fecha')
+            ).filter(
+                Aporte.codTipoAporte == tipo_jornada.idTipoAporte,
+                extract('year', Aporte.fechaAporte) == anio_actual
+            ).group_by(Aporte.idJugador).all()
+            actividad = {r.idJugador: {'partidos': r.partidos, 'ultima': r.ultima_fecha} for r in stats}
+        return render_template('jugadores.html', jugadores=jugadores,
+                               siguiente_codigo=siguiente_codigo,
+                               actividad=actividad, anio_actual=anio_actual,
+                               error=f"Ya existe un jugador con el documento «{documento}». Verificá el número ingresado.")
 
     nuevo = Jugador(
         codJugador=codJugador,

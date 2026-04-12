@@ -19,6 +19,10 @@
         .tab-jug-btn:not(.active):hover { background:#dde8f2; }
         .tab-jug-content { display:none; border:1px solid #c8d4e0; border-radius:0 6px 6px 6px; background:#fff; padding:16px; }
         .tab-jug-content.active { display:block; }
+        th.sortable { cursor:pointer; user-select:none; }
+        th.sortable:hover { background-color:#1e4a6e; }
+        th.sort-asc::after  { content:' ▲'; font-size:10px; opacity:0.85; }
+        th.sort-desc::after { content:' ▼'; font-size:10px; opacity:0.85; }
     </style>
 </head>
 <body>
@@ -50,6 +54,12 @@
 
     <!-- Formulario para agregar jugador -->
     <h2>Agregar Jugador</h2>
+    {% if error %}
+    <div style="background:#fde8e8; color:#c0392b; border:1px solid #f5c6c6; border-radius:6px;
+                padding:10px 16px; margin-bottom:12px; font-size:13px;">
+        ⚠ {{ error }}
+    </div>
+    {% endif %}
     
     <form action="{{ url_for('update_jugador', id=jugador_edit.id) if jugador_edit else url_for('add_jugador') }}" method="POST">
     <label>Código:</label>
@@ -124,31 +134,40 @@
     <table border="1" cellpadding="5" cellspacing="0" style="margin-top:0;">
         <thead>
             <tr>
-                <th>Código</th>
-                <th>Nombre</th>
-                <th>Apellido</th>
-                <th>Documento</th>
-                <th>Fecha Nacimiento</th>
-                <th title="Aportes Jornada en {{ anio_actual }}">Partidos {{ anio_actual }}</th>
-                <th>Última participación</th>
+                <th style="width:38px; text-align:center;">#</th>
+                <th class="sortable">Código</th>
+                <th class="sortable">Nombre</th>
+                <th class="sortable">Apellido</th>
+                <th class="sortable" title="Aportes Jornada en {{ anio_actual }}">Partidos {{ anio_actual }}</th>
+                <th class="sortable" title="Partidos / 52 jornadas del año">Asistencia %</th>
+                <th class="sortable">Última participación</th>
                 <th>Acciones</th>
             </tr>
         </thead>
         <tbody>
             {% for j in lista %}
             <tr>
+                <td style="text-align:center; color:#aaa; font-size:11px;">{{ loop.index }}</td>
                 <td>{{ j.codJugador }}</td>
                 <td>{{ j.nombreJugador }}</td>
                 <td>{{ j.apellidoJugador }}</td>
-                <td>{{ j.numeroDocumento }}</td>
-                <td>{{ j.fechaNacimiento.strftime('%d/%m/%Y') if j.fechaNacimiento else '' }}</td>
                 {% set act = actividad.get(j.id, {}) %}
+                {% set partidos = act.partidos if act.partidos else 0 %}
+                {% set pct = (partidos / 52 * 100) | round(1) %}
                 <td style="text-align:center;">
-                    {% if act.partidos %}
-                    <span style="font-weight:bold; color:#2c5f8a;">{{ act.partidos }}</span>
+                    {% if partidos %}
+                    <span style="font-weight:bold; color:#2c5f8a;">{{ partidos }}</span>
                     {% else %}<span style="color:#bbb;">—</span>{% endif %}
                 </td>
-                <td style="text-align:center;">
+                <td style="text-align:center;" data-sort="{{ '%05.1f' | format(pct) }}">
+                    {% if partidos %}
+                    {% if pct >= 75 %}{% set color = '#2a7a2a' %}
+                    {% elif pct >= 50 %}{% set color = '#b8860b' %}
+                    {% else %}{% set color = '#c0392b' %}{% endif %}
+                    <span style="font-weight:bold; color:{{ color }};">{{ pct }}%</span>
+                    {% else %}<span style="color:#bbb;">—</span>{% endif %}
+                </td>
+                <td style="text-align:center;" data-sort="{{ act.ultima.strftime('%Y-%m-%d') if act.ultima else '' }}">
                     {% if act.ultima %}{{ act.ultima.strftime('%d/%m/%Y') }}
                     {% else %}<span style="color:#bbb;">—</span>{% endif %}
                 </td>
@@ -214,31 +233,40 @@ document.getElementById("searchInput").addEventListener("keyup", function() {
 });
 
 document.addEventListener('DOMContentLoaded', function() {
-    const getCellValue = (tr, idx) => tr.children[idx].innerText || tr.children[idx].textContent;
-    
-    const comparer = (idx, asc) => (a, b) => ((v1, v2) => 
-        v1 !== '' && v2 !== '' && !isNaN(v1) && !isNaN(v2) ? v1 - v2 : v1.toString().localeCompare(v2)
-    )(getCellValue(asc ? a : b, idx), getCellValue(asc ? b : a, idx));
-    
-    document.querySelectorAll('th').forEach((th, i, headers) => {
-        // No hacer clicable la columna de acciones (última columna)
-        if (i < headers.length - 1) {
+    document.querySelectorAll('table').forEach(function(table) {
+        const headers = Array.from(table.querySelectorAll('th.sortable'));
+        headers.forEach(function(th) {
             th.addEventListener('click', function() {
-                const tbody = this.closest('table').querySelector('tbody');
-                Array.from(tbody.querySelectorAll('tr'))
-                    .sort(comparer(i, this.asc = !this.asc))
-                    .forEach(tr => tbody.appendChild(tr));
-                
-                // Actualizar indicadores visuales
-                headers.forEach(header => {
-                    header.classList.remove('sort-asc', 'sort-desc');
-                    if (header === th) {
-                        header.classList.add(this.asc ? 'sort-asc' : 'sort-desc');
-                    }
+                const colIdx = Array.from(th.closest('tr').children).indexOf(th);
+                const asc = th.dataset.sortDir !== 'asc';
+                th.dataset.sortDir = asc ? 'asc' : 'desc';
+
+                // Limpiar indicadores de esta tabla
+                table.querySelectorAll('th').forEach(h => {
+                    h.classList.remove('sort-asc', 'sort-desc');
+                    delete h.dataset.sortDir;
+                });
+                th.dataset.sortDir = asc ? 'asc' : 'desc';
+                th.classList.add(asc ? 'sort-asc' : 'sort-desc');
+
+                const tbody = table.querySelector('tbody');
+                Array.from(tbody.querySelectorAll('tr')).sort(function(a, b) {
+                    const cellA = a.cells[colIdx];
+                    const cellB = b.cells[colIdx];
+                    // Usar data-sort si existe (para fechas con formato dd/mm/yyyy)
+                    const v1 = (cellA?.dataset.sort ?? cellA?.innerText ?? '').trim();
+                    const v2 = (cellB?.dataset.sort ?? cellB?.innerText ?? '').trim();
+                    const n1 = parseFloat(v1), n2 = parseFloat(v2);
+                    const cmp = (!isNaN(n1) && !isNaN(n2)) ? n1 - n2 : v1.localeCompare(v2, 'es');
+                    return asc ? cmp : -cmp;
+                }).forEach(tr => tbody.appendChild(tr));
+
+                // Re-numerar columna # (índice 0) tras ordenar
+                Array.from(tbody.querySelectorAll('tr')).forEach((tr, i) => {
+                    if (tr.cells[0]) tr.cells[0].textContent = i + 1;
                 });
             });
-            th.style.cursor = 'pointer';
-        }
+        });
     });
 });
 </script>

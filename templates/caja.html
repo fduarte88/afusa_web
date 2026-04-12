@@ -438,10 +438,13 @@
         history.replaceState(null, '', '?tab=' + tab);
     }
 
-    // Activar tab por URL param
+    // Activar tab por URL param y enfocar campo código al cargar
     (function() {
         const p = new URLSearchParams(window.location.search).get('tab');
         switchTab(p === 'egresos' ? 'egresos' : 'aportes');
+        if (p !== 'egresos') {
+            setTimeout(() => document.getElementById('codigo_jugador').focus(), 80);
+        }
     })();
 
     // --- Mostrar últimas participaciones en jornada ---
