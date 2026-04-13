@@ -112,6 +112,18 @@ def operador_blocked(f):
     return decorated
 
 
+def calcular_sabados_transcurridos():
+    """Sábados transcurridos desde el 1 de enero del año actual hasta hoy (inclusive)."""
+    from datetime import date, timedelta
+    hoy = date.today()
+    inicio = date(hoy.year, 1, 1)
+    dias_hasta_sabado = (5 - inicio.weekday()) % 7   # 5 = sábado
+    primer_sabado = inicio + timedelta(days=dias_hasta_sabado)
+    if primer_sabado > hoy:
+        return 0
+    return (hoy - primer_sabado).days // 7 + 1
+
+
 # Ruta principal: lista y formulario
 @app.route('/')
 @login_required
@@ -138,8 +150,9 @@ def index():
         ).group_by(Aporte.idJugador).all()
         actividad = {r.idJugador: {'partidos': r.partidos, 'ultima': r.ultima_fecha} for r in stats}
 
+    total_sabados = calcular_sabados_transcurridos()
     return render_template('jugadores.html', jugadores=jugadores, siguiente_codigo=siguiente_codigo,
-                           actividad=actividad, anio_actual=anio_actual)
+                           actividad=actividad, anio_actual=anio_actual, total_sabados=total_sabados)
 
 # PDF listado de jugadores
 @app.route('/jugadores/pdf')
@@ -276,34 +289,43 @@ def jugadores_pdf_asistencias():
                                 spaceBefore=6, spaceAfter=8))
     elementos.append(Paragraph(fecha_larga, fecha_style))
 
+    total_sabados = calcular_sabados_transcurridos()
+
     # Ancho disponible: 8.5in - 2*margen
     ancho = 8.5*inch - 2*margen
-    # Columnas: #, ID, Nombre Apellido, Partidos, Aporte Jornada, Cuota, Tarjetas, Nro
-    col_w = [0.8*cm, 1.2*cm, 0, 1.6*cm, 3*cm, 2.2*cm, 2.2*cm, 1.8*cm]
+    # Columnas: #, ID, Nombre Apellido, Asistencia %, Aporte Jornada, Cuota, Tarjetas, Nro
+    col_w = [0.8*cm, 1.2*cm, 0, 1.8*cm, 3*cm, 2.2*cm, 2.2*cm, 1.8*cm]
     col_w[2] = ancho - sum(c for c in col_w if c)   # Nombre ocupa el resto
 
     fila_alto = 0.85*cm   # altura para escribir
 
     h_style = ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)
     encabezado = [
-        Paragraph('<b>#</b>',                    h_style),
-        Paragraph('<b>ID</b>',                   h_style),
-        Paragraph('<b>Nombre y Apellido</b>',    h_style),
-        Paragraph(f'<b>Partidos\n{anio_actual}</b>', h_style),
-        Paragraph('<b>Aporte\nJornada</b>',      h_style),
-        Paragraph('<b>Cuota</b>',                h_style),
-        Paragraph('<b>Tarjetas</b>',             h_style),
-        Paragraph('<b>Nro</b>',                  h_style),
+        Paragraph('<b>#</b>',                        h_style),
+        Paragraph('<b>ID</b>',                       h_style),
+        Paragraph('<b>Nombre y Apellido</b>',        h_style),
+        Paragraph('<b>Asistencia %</b>', h_style),
+        Paragraph('<b>Aporte\nJornada</b>',          h_style),
+        Paragraph('<b>Cuota</b>',                    h_style),
+        Paragraph('<b>Tarjetas</b>',                 h_style),
+        Paragraph('<b>Nro</b>',                      h_style),
     ]
 
-    d_style = ParagraphStyle('d', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER,
-                             textColor=colors.HexColor('#2c5f8a'))
     filas = [encabezado]
+    extra_styles = []   # estilos de color por celda (fila, col)
     for idx, j in enumerate(jugadores, start=1):
         nombre = f"{j.nombreJugador} {j.apellidoJugador}"
         partidos = partidos_map.get(j.id, 0)
-        partidos_cell = Paragraph(str(partidos) if partidos else '—', d_style)
-        filas.append([str(idx), str(j.codJugador), nombre, partidos_cell, '', '', '', ''])
+        if total_sabados > 0 and partidos:
+            pct = round(partidos / total_sabados * 100, 1)
+            color_pct = colors.HexColor('#1a7a2a') if pct >= 70 else colors.HexColor('#c0392b')
+            pct_style = ParagraphStyle('p', fontSize=8, fontName='Helvetica-Bold',
+                                       alignment=TA_CENTER, textColor=color_pct)
+            pct_cell = Paragraph(f'{pct}% ({partidos})', pct_style)
+        else:
+            pct_cell = Paragraph('—', ParagraphStyle('p0', fontSize=8, alignment=TA_CENTER,
+                                                     textColor=colors.HexColor('#aaaaaa')))
+        filas.append([str(idx), str(j.codJugador), nombre, pct_cell, '', '', '', ''])
 
     n_datos = len(filas) - 1
     row_heights = [0.9*cm] + [fila_alto] * n_datos
@@ -420,8 +442,9 @@ def edit_jugador(id):
             extract('year', Aporte.fechaAporte) == anio_actual
         ).group_by(Aporte.idJugador).all()
         actividad = {r.idJugador: {'partidos': r.partidos, 'ultima': r.ultima_fecha} for r in stats}
+    total_sabados = calcular_sabados_transcurridos()
     return render_template('jugadores.html', jugadores=jugadores, jugador_edit=jugador,
-                           actividad=actividad, anio_actual=anio_actual)
+                           actividad=actividad, anio_actual=anio_actual, total_sabados=total_sabados)
 
 # Guardar edición
 @app.route('/update/<int:id>', methods=['POST'])

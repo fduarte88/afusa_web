@@ -139,7 +139,7 @@
                 <th class="sortable">Nombre</th>
                 <th class="sortable">Apellido</th>
                 <th class="sortable" title="Aportes Jornada en {{ anio_actual }}">Partidos {{ anio_actual }}</th>
-                <th class="sortable" title="Partidos / 52 jornadas del año">Asistencia %</th>
+                <th class="sortable" title="Partidos / {{ total_sabados }} sábados transcurridos">Asistencia %</th>
                 <th class="sortable">Última participación</th>
                 <th>Acciones</th>
             </tr>
@@ -153,7 +153,7 @@
                 <td>{{ j.apellidoJugador }}</td>
                 {% set act = actividad.get(j.id, {}) %}
                 {% set partidos = act.partidos if act.partidos else 0 %}
-                {% set pct = (partidos / 52 * 100) | round(1) %}
+                {% set pct = ((partidos / total_sabados * 100) | round(1)) if total_sabados > 0 else 0 %}
                 <td style="text-align:center;">
                     {% if partidos %}
                     <span style="font-weight:bold; color:#2c5f8a;">{{ partidos }}</span>
