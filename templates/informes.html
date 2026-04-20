@@ -128,6 +128,27 @@
 
         <hr class="sep">
 
+        <!-- Registro de Asistencias -->
+        <div class="informe-box" style="margin-top:20px;">
+            <h2>Registro de Asistencias</h2>
+            <p style="font-size:12px; color:#666; margin-top:-8px; margin-bottom:16px;">
+                Lista de jugadores activos con asistencia % y partidos del año en curso.
+            </p>
+            <div class="informe-row">
+                <label>Ordenar por:</label>
+                <select id="orden_asist" style="font-size:13px; padding:4px 8px; border:1px solid #ccc; border-radius:5px;">
+                    <option value="nombre">Nombre</option>
+                    <option value="partidos">Partidos disputados</option>
+                    <option value="pct">Porcentaje de asistencia</option>
+                </select>
+            </div>
+            <div style="margin-top:18px;">
+                <button class="btn-informe" style="background:#5b7fa6;" onclick="generarAsistencias()">Registro de Asistencias</button>
+            </div>
+        </div>
+
+        <hr class="sep">
+
         <!-- Resumen general -->
         <div class="informe-box" style="margin-top:20px;">
             <h2>Resumen General</h2>
@@ -170,6 +191,11 @@
         function generarDetallePeriodo() {
             const f = _validarFechas(); if (!f) return;
             window.open('/informes/pdf/periodo/detalle?desde=' + f.desde + '&hasta=' + f.hasta, '_blank');
+        }
+
+        function generarAsistencias() {
+            const orden = document.getElementById('orden_asist').value;
+            window.open('/jugadores/pdf/asistencias?orden=' + orden, '_blank');
         }
 
         function generarGeneral() {

@@ -253,6 +253,8 @@ def jugadores_pdf_asistencias():
     fecha_larga = f"{dias_n[hoy.weekday()]} {hoy.day} de {meses_n[hoy.month-1]} de {hoy.year}".capitalize()
 
     from sqlalchemy import extract
+    orden = request.args.get('orden', 'nombre')   # 'nombre' | 'partidos' | 'pct'
+
     jugadores = Jugador.query.filter_by(activo=True)\
                     .order_by(Jugador.nombreJugador.asc(), Jugador.apellidoJugador.asc()).all()
 
@@ -268,6 +270,16 @@ def jugadores_pdf_asistencias():
             extract('year', Aporte.fechaAporte) == anio_actual
         ).group_by(Aporte.idJugador).all()
         partidos_map = {r.idJugador: r.total for r in stats}
+
+    # Ordenar según parámetro
+    total_sabados_ord = calcular_sabados_transcurridos()
+    if orden == 'partidos':
+        jugadores.sort(key=lambda j: partidos_map.get(j.id, 0), reverse=True)
+    elif orden == 'pct':
+        jugadores.sort(key=lambda j: (
+            round(partidos_map.get(j.id, 0) / total_sabados_ord * 100, 1)
+            if total_sabados_ord > 0 else 0
+        ), reverse=True)
 
     OFICIO = (8.5*inch, 13*inch)
     margen = 1.5*cm
