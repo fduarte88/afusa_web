@@ -146,7 +146,9 @@
         </thead>
         <tbody>
             {% for j in lista %}
-            <tr>
+            {% set tarjeta_val = 'roja' if j.tarjeta_roja else ('az' if j.tarjeta_az else ('am' if j.tarjeta_am else '')) %}
+            {% set row_bg = 'background:#FFCDD2;' if tarjeta_val == 'roja' else ('background:#BBDEFB;' if tarjeta_val == 'az' else ('background:#FFF9C4;' if tarjeta_val == 'am' else '')) %}
+            <tr style="{{ row_bg }}" data-tarjeta="{{ tarjeta_val }}">
                 <td style="text-align:center; color:#aaa; font-size:11px;">{{ loop.index }}</td>
                 <td>{{ j.codJugador }}</td>
                 <td>{{ j.nombreJugador }}</td>
@@ -172,16 +174,24 @@
                     {% else %}<span style="color:#bbb;">—</span>{% endif %}
                 </td>
                 <td style="white-space:nowrap;">
-                    <a href="{{ url_for('edit_jugador', id=j.id) }}" style="color:#007bff;">Editar</a> |
-                    <form method="POST" action="{{ url_for('toggle_jugador', id=j.id) }}" style="display:inline;">
-                        <button type="submit" style="background:none; border:none; cursor:pointer; padding:0; font-size:13px;
-                            color:{{ '#c0392b' if j.activo else '#2a7a2a' }};"
-                            title="{{ 'Desactivar' if j.activo else 'Activar' }}"
-                            onclick="return confirm('¿{{ 'Desactivar' if j.activo else 'Activar' }} a {{ j.nombreJugador }}?')">
-                            {{ 'Desactivar' if j.activo else 'Activar' }}
-                        </button>
-                    </form> |
-                    <a href="{{ url_for('delete_jugador', id=j.id) }}" onclick="return confirm('¿Eliminar este jugador?')" style="color:red;">Eliminar</a>
+                    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                        <select class="sel-tarjeta" data-id="{{ j.id }}"
+                                style="font-size:11px; padding:2px 4px; border-radius:4px; border:1px solid #c8d4e0; cursor:pointer;">
+                            <option value="">Sin tarjeta</option>
+                            <option value="am"   {{ 'selected' if j.tarjeta_am }}>🟡 Amarilla</option>
+                            <option value="az"   {{ 'selected' if j.tarjeta_az }}>🔵 Azul</option>
+                            <option value="roja" {{ 'selected' if j.tarjeta_roja }}>🔴 Roja</option>
+                        </select>
+                        <span style="color:#c8d4e0;">|</span>
+                        <a href="{{ url_for('edit_jugador', id=j.id) }}" style="color:#007bff; font-size:12px;">Editar</a>
+                        <span style="color:#c8d4e0;">|</span>
+                        <form id="form-toggle-{{ j.id }}" method="POST" action="{{ url_for('toggle_jugador', id=j.id) }}" style="display:none;"></form>
+                        <a href="#" style="color:{{ '#c0392b' if j.activo else '#2a7a2a' }}; font-size:12px;"
+                           onclick="if(confirm('¿{{ 'Inactivar' if j.activo else 'Activar' }} a {{ j.nombreJugador }}?')) document.getElementById('form-toggle-{{ j.id }}').submit(); return false;">
+                           {{ 'Inactivar' if j.activo else 'Activar' }}</a>
+                        <span style="color:#c8d4e0;">|</span>
+                        <a href="{{ url_for('delete_jugador', id=j.id) }}" onclick="return confirm('¿Eliminar este jugador?')" style="color:red; font-size:12px;">Eliminar</a>
+                    </div>
                 </td>
             </tr>
             {% else %}
@@ -206,6 +216,26 @@ flatpickr('#fechaNacimiento', {
     altInput: true,
     altFormat: 'd/m/Y',
     allowInput: false,
+});
+
+// --- Colores de fila por tarjeta ---
+const TARJETA_BG = { am: '#FFF9C4', az: '#BBDEFB', roja: '#FFCDD2', '': '' };
+
+document.addEventListener('change', function(e) {
+    if (!e.target.classList.contains('sel-tarjeta')) return;
+    const id     = e.target.dataset.id;
+    const tarjeta = e.target.value;
+    const row    = e.target.closest('tr');
+
+    // Colorear fila
+    row.style.background = TARJETA_BG[tarjeta] || '';
+    row.dataset.tarjeta  = tarjeta;
+
+    fetch(`/jugadores/tarjeta/${id}`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ tarjeta })
+    });
 });
 
 function switchTabJug(tab) {

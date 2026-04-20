@@ -39,6 +39,9 @@ class Jugador(db.Model):
     adddate = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
     alias = db.Column(db.String(50), nullable=True)
     activo = db.Column(db.Boolean, nullable=False, default=True, server_default='true')
+    tarjeta_am  = db.Column(db.Boolean, nullable=False, default=False, server_default='false')
+    tarjeta_az  = db.Column(db.Boolean, nullable=False, default=False, server_default='false')
+    tarjeta_roja = db.Column(db.Boolean, nullable=False, default=False, server_default='false')
 
     def __repr__(self):
         return f"<Jugador {self.nombreJugador} {self.apellidoJugador}>"
@@ -293,26 +296,31 @@ def jugadores_pdf_asistencias():
 
     # Ancho disponible: 8.5in - 2*margen
     ancho = 8.5*inch - 2*margen
-    # Columnas: #, ID, Nombre Apellido, Asistencia %, Aporte Jornada, Cuota, Tarjetas, Nro
-    col_w = [0.8*cm, 1.2*cm, 0, 1.8*cm, 3*cm, 2.2*cm, 2.2*cm, 1.8*cm]
-    col_w[2] = ancho - sum(c for c in col_w if c)   # Nombre ocupa el resto
+    # Columnas: #, ID, T(tarjeta), Nombre Apellido, Asistencia %, Aporte Jornada, Cuota, Tarjetas, Nro
+    col_w = [0.8*cm, 1.2*cm, 0.5*cm, 0, 1.8*cm, 3*cm, 2.2*cm, 2.2*cm, 1.8*cm]
+    col_w[3] = ancho - sum(c for c in col_w if c)   # Nombre ocupa el resto
 
     fila_alto = 0.85*cm   # altura para escribir
 
     h_style = ParagraphStyle('h', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER)
     encabezado = [
-        Paragraph('<b>#</b>',                        h_style),
-        Paragraph('<b>ID</b>',                       h_style),
-        Paragraph('<b>Nombre y Apellido</b>',        h_style),
-        Paragraph('<b>Asistencia %</b>', h_style),
-        Paragraph('<b>Aporte\nJornada</b>',          h_style),
-        Paragraph('<b>Cuota</b>',                    h_style),
-        Paragraph('<b>Tarjetas</b>',                 h_style),
-        Paragraph('<b>Nro</b>',                      h_style),
+        Paragraph('<b>#</b>',                 h_style),
+        Paragraph('<b>ID</b>',                h_style),
+        Paragraph('',                         h_style),   # columna tarjeta sin título
+        Paragraph('<b>Nombre y Apellido</b>', h_style),
+        Paragraph('<b>Asistencia %</b>',      h_style),
+        Paragraph('<b>Aporte\nJornada</b>',   h_style),
+        Paragraph('<b>Cuota</b>',             h_style),
+        Paragraph('<b>Tarjetas</b>',          h_style),
+        Paragraph('<b>Nro</b>',               h_style),
     ]
 
+    COLOR_AM   = colors.HexColor('#FFD700')   # amarillo
+    COLOR_AZ   = colors.HexColor('#1565C0')   # azul
+    COLOR_ROJA = colors.HexColor('#C62828')   # rojo
+
     filas = [encabezado]
-    extra_styles = []   # estilos de color por celda (fila, col)
+    tarjeta_cell_styles = []   # ('BACKGROUND', (col, row), (col, row), color)
     for idx, j in enumerate(jugadores, start=1):
         nombre = f"{j.nombreJugador} {j.apellidoJugador}"
         partidos = partidos_map.get(j.id, 0)
@@ -325,7 +333,24 @@ def jugadores_pdf_asistencias():
         else:
             pct_cell = Paragraph('—', ParagraphStyle('p0', fontSize=8, alignment=TA_CENTER,
                                                      textColor=colors.HexColor('#aaaaaa')))
-        filas.append([str(idx), str(j.codJugador), nombre, pct_cell, '', '', '', ''])
+
+        # Determinar color de tarjeta (roja > az > am)
+        row_idx = idx   # fila real = idx (encabezado es 0)
+        tarjeta_label = ''
+        if j.tarjeta_roja:
+            tarjeta_cell_styles.append(('BACKGROUND', (2, row_idx), (2, row_idx), COLOR_ROJA))
+            tarjeta_cell_styles.append(('TEXTCOLOR',  (2, row_idx), (2, row_idx), colors.white))
+            tarjeta_label = 'R'
+        elif j.tarjeta_az:
+            tarjeta_cell_styles.append(('BACKGROUND', (2, row_idx), (2, row_idx), COLOR_AZ))
+            tarjeta_cell_styles.append(('TEXTCOLOR',  (2, row_idx), (2, row_idx), colors.white))
+            tarjeta_label = 'AZ'
+        elif j.tarjeta_am:
+            tarjeta_cell_styles.append(('BACKGROUND', (2, row_idx), (2, row_idx), COLOR_AM))
+            tarjeta_cell_styles.append(('TEXTCOLOR',  (2, row_idx), (2, row_idx), colors.HexColor('#333333')))
+            tarjeta_label = 'AM'
+
+        filas.append([str(idx), str(j.codJugador), tarjeta_label, nombre, pct_cell, '', '', '', ''])
 
     n_datos = len(filas) - 1
     row_heights = [0.9*cm] + [fila_alto] * n_datos
@@ -354,6 +379,11 @@ def jugadores_pdf_asistencias():
         ('BOTTOMPADDING', (0,0), (-1,-1), 3),
         ('LEFTPADDING',   (0,0), (-1,-1), 4),
         ('RIGHTPADDING',  (0,0), (-1,-1), 4),
+        # Tarjetas — al final para sobreescribir ROWBACKGROUNDS
+        ('FONTNAME',      (2,1), (2,-1),  'Helvetica-Bold'),
+        ('FONTSIZE',      (2,1), (2,-1),  7),
+        ('ALIGN',         (2,1), (2,-1),  'CENTER'),
+        *tarjeta_cell_styles,
     ]))
 
     elementos.append(tabla)
@@ -472,6 +502,19 @@ def toggle_jugador(id):
     jugador.activo = not jugador.activo
     db.session.commit()
     return redirect(url_for('index'))
+
+@app.route('/jugadores/tarjeta/<int:id>', methods=['POST'])
+@login_required
+@operador_blocked
+def set_tarjeta(id):
+    from flask import jsonify
+    jugador = Jugador.query.get_or_404(id)
+    tarjeta = request.json.get('tarjeta', '')  # 'am', 'az', 'roja' o ''
+    jugador.tarjeta_am   = (tarjeta == 'am')
+    jugador.tarjeta_az   = (tarjeta == 'az')
+    jugador.tarjeta_roja = (tarjeta == 'roja')
+    db.session.commit()
+    return jsonify({'ok': True})
 
 from datetime import datetime
 import locale
