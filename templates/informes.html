@@ -128,6 +128,36 @@
 
         <hr class="sep">
 
+        <!-- Estado de Cuenta por Jugador -->
+        <div class="informe-box" style="margin-top:20px;">
+            <h2>Estado de Cuenta por Jugador</h2>
+            <p style="font-size:12px; color:#666; margin-top:-8px; margin-bottom:16px;">
+                Detalle de pagos del jugador seleccionado, agrupados por tipo de aporte.
+            </p>
+            <div class="informe-row">
+                <label>Jugador:</label>
+                <select id="jugador_ec" style="font-size:13px; padding:4px 8px; border:1px solid #ccc; border-radius:5px; width:280px;">
+                    <option value="">— Seleccionar —</option>
+                    {% for j in jugadores %}
+                    <option value="{{ j.id }}">{{ j.codJugador }} · {{ j.nombreJugador }} {{ j.apellidoJugador }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="informe-row">
+                <label>Año:</label>
+                <select id="anio_ec" style="font-size:13px; padding:4px 8px; border:1px solid #ccc; border-radius:5px; width:100px;">
+                    {% for y in range(anio_actual - 1, anio_actual + 2) %}
+                    <option value="{{ y }}" {{ 'selected' if y == anio_actual }}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="margin-top:18px;">
+                <button class="btn-informe" style="background:#7a5c2a;" onclick="generarEstadoCuenta()">Estado de Cuenta</button>
+            </div>
+        </div>
+
+        <hr class="sep">
+
         <!-- Registro de Asistencias -->
         <div class="informe-box" style="margin-top:20px;">
             <h2>Registro de Asistencias</h2>
@@ -191,6 +221,13 @@
         function generarDetallePeriodo() {
             const f = _validarFechas(); if (!f) return;
             window.open('/informes/pdf/periodo/detalle?desde=' + f.desde + '&hasta=' + f.hasta, '_blank');
+        }
+
+        function generarEstadoCuenta() {
+            const jugador = document.getElementById('jugador_ec').value;
+            const anio    = document.getElementById('anio_ec').value;
+            if (!jugador) { alert('Seleccioná un jugador.'); return; }
+            window.open('/informes/pdf/jugador?jugador_id=' + jugador + '&anio=' + anio, '_blank');
         }
 
         function generarAsistencias() {

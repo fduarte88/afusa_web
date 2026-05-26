@@ -553,6 +553,21 @@ def aportes():
         fecha = datetime.strptime(request.form.get('fechaAporte'), "%Y-%m-%d")
         importe = request.form.get('importe')
 
+        # Validar duplicado Aporte Jornada: mismo jugador + misma fecha
+        jugador_id_int = int(jugador_id) if jugador_id else None
+        if tipo and tipo.descripcion == 'Aporte Jornada':
+            duplicado = Aporte.query.filter_by(
+                idJugador=jugador_id_int,
+                codTipoAporte=tipo.idTipoAporte,
+                fechaAporte=fecha.date()
+            ).first()
+            if duplicado:
+                from flask import flash
+                jugador_dup = Jugador.query.get(jugador_id)
+                nombre_dup = f"{jugador_dup.nombreJugador} {jugador_dup.apellidoJugador}" if jugador_dup else f"ID {jugador_id}"
+                flash(f"Duplicado: {nombre_dup} ya tiene registrado un Aporte de Jornada para el {fecha.strftime('%d/%m/%Y')}.", 'error_aporte')
+                return redirect(url_for('caja') + f'?tab=aportes&fecha_ap={fecha.strftime("%Y-%m-%d")}')
+
         # Si es Mensualidad y se indicó mes destino, guardar en descripcion
         mes_destino = request.form.get('mes_destino', '').strip()
         if tipo and tipo.descripcion == 'Mensualidad' and mes_destino:
@@ -561,7 +576,7 @@ def aportes():
             desc = tipo.descripcion if tipo else ''
 
         nuevo_aporte = Aporte(
-            idJugador=jugador_id,
+            idJugador=jugador_id_int,
             codTipoAporte=(tipo.idTipoAporte if tipo else None),
             descripcion=desc,
             fechaAporte=fecha,
@@ -1230,7 +1245,10 @@ def caja_pdf_jornada():
 @app.route('/informes')
 @login_required
 def informes():
-    return render_template('informes.html')
+    jugadores = Jugador.query.filter_by(activo=True)\
+                    .order_by(Jugador.nombreJugador.asc(), Jugador.apellidoJugador.asc()).all()
+    anio_actual = datetime.now().year
+    return render_template('informes.html', jugadores=jugadores, anio_actual=anio_actual)
 
 @app.route('/api/mensualidades/<int:jugador_id>/<int:anio>')
 @login_required
@@ -1540,6 +1558,184 @@ def informes_pdf_general():
     buf = _pdf_informe(lista_ap, lista_eg, "Resumen General", "Todos los registros")
     return Response(buf, mimetype='application/pdf',
                     headers={'Content-Disposition': 'inline; filename="informe_general.pdf"'})
+
+@app.route('/informes/pdf/jugador')
+@login_required
+def informes_pdf_jugador():
+    from sqlalchemy import extract
+    jugador_id = request.args.get('jugador_id', type=int)
+    anio       = request.args.get('anio', datetime.now().year, type=int)
+
+    jugador = Jugador.query.get_or_404(jugador_id)
+
+    aportes = (Aporte.query
+               .filter(Aporte.idJugador == jugador_id,
+                       extract('year', Aporte.fechaAporte) == anio)
+               .join(TipoAporte, Aporte.codTipoAporte == TipoAporte.idTipoAporte)
+               .order_by(TipoAporte.descripcion.asc(), Aporte.fechaAporte.asc())
+               .all())
+
+    from reportlab.lib.pagesizes import A4, portrait
+    from reportlab.platypus import TableStyle
+
+    meses_n = ['enero','febrero','marzo','abril','mayo','junio',
+               'julio','agosto','septiembre','octubre','noviembre','diciembre']
+    dias_n  = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo']
+    hoy = datetime.now()
+    fecha_larga = f"{dias_n[hoy.weekday()]} {hoy.day} de {meses_n[hoy.month-1]} de {hoy.year}".capitalize()
+
+    buf = io.BytesIO()
+    margen = 1.8 * cm
+    doc = SimpleDocTemplate(buf, pagesize=portrait(A4),
+                            leftMargin=margen, rightMargin=margen,
+                            topMargin=margen, bottomMargin=margen)
+
+    styles    = getSampleStyleSheet()
+    c_azul    = colors.HexColor('#2c5f8a')
+    c_verde   = colors.HexColor('#2a7a2a')
+    c_gris    = colors.HexColor('#f4f8fc')
+    c_borde   = colors.HexColor('#5a7a99')
+    c_header  = colors.HexColor('#5b9bd5')
+
+    titulo_st = ParagraphStyle('t', fontSize=14, fontName='Helvetica-Bold',
+                               textColor=c_azul, alignment=TA_CENTER, spaceAfter=2)
+    sub_st    = ParagraphStyle('s', fontSize=10, alignment=TA_CENTER, spaceAfter=2)
+    fecha_st  = ParagraphStyle('f', fontSize=9, alignment=TA_CENTER,
+                               textColor=colors.HexColor('#666666'), spaceAfter=10)
+    tipo_st   = ParagraphStyle('g', fontSize=10, fontName='Helvetica-Bold',
+                               textColor=c_azul, spaceBefore=10, spaceAfter=4)
+    cell_st   = ParagraphStyle('c', fontSize=9, fontName='Helvetica')
+    cell_r_st = ParagraphStyle('cr', fontSize=9, fontName='Helvetica', alignment=2)  # RIGHT
+
+    ancho = A4[0] - 2 * margen
+    # Columnas: Fecha, Tipo / Descripción, Importe
+    col_w = [2.8*cm, 0, 2.8*cm]
+    col_w[1] = ancho - col_w[0] - col_w[2]
+
+    elementos = []
+    elementos.append(Paragraph(f"AFUSA {anio} — Estado de Cuenta", titulo_st))
+    elementos.append(Paragraph(
+        f"{jugador.nombreJugador} {jugador.apellidoJugador}  ·  Código {jugador.codJugador}", sub_st))
+    elementos.append(HRFlowable(width="100%", thickness=0.4, color=c_azul, spaceBefore=4, spaceAfter=6))
+    elementos.append(Paragraph(fecha_larga, fecha_st))
+
+    def fmt_gs(val):
+        try:
+            return f"Gs. {int(val):,}".replace(',', '.')
+        except Exception:
+            return str(val)
+
+    def fmt_fecha(d):
+        return d.strftime('%d/%m/%Y') if d else ''
+
+    # Encabezado de tabla
+    h_st = ParagraphStyle('h', fontSize=9, fontName='Helvetica-Bold', alignment=TA_CENTER)
+    encabezado = [
+        Paragraph('<b>Fecha</b>',       h_st),
+        Paragraph('<b>Descripción</b>', h_st),
+        Paragraph('<b>Importe</b>',     h_st),
+    ]
+
+    # Agrupar por tipo de aporte
+    from itertools import groupby
+    key_fn = lambda a: a.tipo_aporte.descripcion if a.tipo_aporte else ''
+    total_general = 0
+
+    filas_tabla = [encabezado]
+    estilos_extra = []   # estilos por fila (índice relativo a filas_tabla)
+
+    for tipo_desc, grupo in groupby(aportes, key=key_fn):
+        grupo = list(grupo)
+        subtotal = sum(float(a.importe) for a in grupo)
+        total_general += subtotal
+
+        # Fila de grupo (título del tipo)
+        idx_grupo = len(filas_tabla)
+        filas_tabla.append([
+            Paragraph(f'<b>{tipo_desc}</b>', ParagraphStyle('g2', fontSize=9,
+                      fontName='Helvetica-Bold', textColor=colors.white)),
+            Paragraph('', h_st),
+            Paragraph('', h_st),
+        ])
+        estilos_extra.append(('BACKGROUND', (0, idx_grupo), (-1, idx_grupo), c_azul))
+        estilos_extra.append(('SPAN',       (0, idx_grupo), (-1, idx_grupo)))
+
+        for i, a in enumerate(grupo):
+            desc_text = a.descripcion or (a.tipo_aporte.descripcion if a.tipo_aporte else '')
+            # Formatear mes si es mensualidad
+            if desc_text.startswith('mes:'):
+                try:
+                    mes_num = int(desc_text.split(':')[1])
+                    desc_text = meses_n[mes_num - 1].capitalize()
+                except Exception:
+                    desc_text = desc_text.replace('mes:', 'Mes ')
+            bg = c_gris if i % 2 == 0 else colors.white
+            idx_fila = len(filas_tabla)
+            filas_tabla.append([
+                Paragraph(fmt_fecha(a.fechaAporte), cell_st),
+                Paragraph(desc_text, cell_st),
+                Paragraph(fmt_gs(a.importe), cell_r_st),
+            ])
+            estilos_extra.append(('BACKGROUND', (0, idx_fila), (-1, idx_fila), bg))
+
+        # Fila subtotal
+        idx_sub = len(filas_tabla)
+        filas_tabla.append([
+            Paragraph('', cell_st),
+            Paragraph(f'<b>Subtotal {tipo_desc}</b>',
+                      ParagraphStyle('sb', fontSize=9, fontName='Helvetica-Bold', alignment=2)),
+            Paragraph(f'<b>{fmt_gs(subtotal)}</b>',
+                      ParagraphStyle('sbv', fontSize=9, fontName='Helvetica-Bold', alignment=2)),
+        ])
+        estilos_extra.append(('BACKGROUND',  (0, idx_sub), (-1, idx_sub), colors.HexColor('#dde8f2')))
+        estilos_extra.append(('LINEABOVE',   (0, idx_sub), (-1, idx_sub), 0.5, c_borde))
+
+    # Fila total general
+    if not aportes:
+        filas_tabla.append([
+            Paragraph('Sin registros para este período.', ParagraphStyle('nr', fontSize=9,
+                      textColor=colors.HexColor('#aaaaaa'), alignment=TA_CENTER)),
+            Paragraph('', cell_st),
+            Paragraph('', cell_st),
+        ])
+        estilos_extra.append(('SPAN', (0, len(filas_tabla)-1), (-1, len(filas_tabla)-1)))
+    else:
+        idx_tot = len(filas_tabla)
+        filas_tabla.append([
+            Paragraph('', cell_st),
+            Paragraph('<b>TOTAL GENERAL</b>',
+                      ParagraphStyle('tot', fontSize=10, fontName='Helvetica-Bold', alignment=2)),
+            Paragraph(f'<b>{fmt_gs(total_general)}</b>',
+                      ParagraphStyle('totv', fontSize=10, fontName='Helvetica-Bold', alignment=2)),
+        ])
+        estilos_extra.append(('BACKGROUND', (0, idx_tot), (-1, idx_tot), colors.HexColor('#2c5f8a')))
+        estilos_extra.append(('TEXTCOLOR',  (0, idx_tot), (-1, idx_tot), colors.white))
+
+    tabla = Table(filas_tabla, colWidths=col_w, repeatRows=1)
+    tabla.setStyle(TableStyle([
+        # Encabezado
+        ('BACKGROUND',    (0,0), (-1,0),  c_header),
+        ('TEXTCOLOR',     (0,0), (-1,0),  colors.white),
+        ('ALIGN',         (0,0), (-1,0),  'CENTER'),
+        ('VALIGN',        (0,0), (-1,-1), 'MIDDLE'),
+        # Datos
+        ('FONTNAME',      (0,1), (-1,-1), 'Helvetica'),
+        ('FONTSIZE',      (0,0), (-1,-1), 9),
+        ('GRID',          (0,0), (-1,-1), 0.4, c_borde),
+        ('TOPPADDING',    (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('LEFTPADDING',   (0,0), (-1,-1), 5),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 5),
+        *estilos_extra,
+    ]))
+    elementos.append(tabla)
+
+    doc.build(elementos)
+    buf.seek(0)
+    nombre_archivo = f"estado_cuenta_{jugador.codJugador}_{anio}.pdf"
+    return Response(buf, mimetype='application/pdf',
+                    headers={'Content-Disposition': f'inline; filename="{nombre_archivo}"'})
+
 
 @app.route('/informes/pdf/mensualidades')
 @login_required
