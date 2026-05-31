@@ -134,7 +134,64 @@
         </div>
     </div>
 
+    <!-- ===== Configuración de Perfiles de Roles ===== -->
+    <div style="margin:30px; margin-top:36px; max-width:640px;">
+        <h2 style="font-size:16px; color:#2c5f8a; border-bottom:1px solid #ddd; padding-bottom:8px;">Perfiles de Roles</h2>
+        <p style="font-size:12px; color:#666; margin-bottom:14px;">
+            Configura los permisos de escritura por sección para cada rol.
+            El rol <strong>Administrador</strong> siempre tiene acceso total.
+        </p>
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; font-size:13px; width:100%;">
+            <thead style="background:#2c5f8a; color:#fff;">
+                <tr>
+                    <th style="text-align:left;">Sección</th>
+                    {% for rol in roles_config %}
+                    <th style="text-align:center; width:160px;">{{ rol|capitalize }}<br><span style="font-size:10px; font-weight:normal; opacity:0.85;">Permiso escritura</span></th>
+                    {% endfor %}
+                    <th style="text-align:center; width:120px;">Administrador<br><span style="font-size:10px; font-weight:normal; opacity:0.85;">Acceso total</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sec_key, sec_label in secciones %}
+                <tr style="background:{{ '#f4f8fc' if loop.index is odd else '#fff' }};">
+                    <td style="font-weight:bold;">{{ sec_label }}</td>
+                    {% for rol in roles_config %}
+                    {% set tiene = permisos_matrix.get(rol, {}).get(sec_key, False) %}
+                    <td style="text-align:center;">
+                        <button type="button"
+                            id="btn-perm-{{ rol }}-{{ sec_key }}"
+                            onclick="togglePermiso('{{ rol }}', '{{ sec_key }}')"
+                            style="padding:5px 20px; border:none; border-radius:14px; cursor:pointer;
+                                   font-size:12px; font-weight:bold; min-width:110px;
+                                   background:{{ '#2a7a2a' if tiene else '#c0392b' }}; color:#fff;">
+                            {{ '✓ Permitido' if tiene else '✗ Bloqueado' }}
+                        </button>
+                    </td>
+                    {% endfor %}
+                    <td style="text-align:center; color:#2a7a2a; font-weight:bold;">✓ Total</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <p style="font-size:11px; color:#999; margin-top:8px;">Los cambios se aplican de inmediato.</p>
+    </div>
+
     <script>
+    function togglePermiso(rol, seccion) {
+        const btn = document.getElementById(`btn-perm-${rol}-${seccion}`);
+        fetch('/usuarios/permisos/toggle', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ rol, seccion })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ok) return;
+            btn.textContent = data.escribir ? '✓ Permitido' : '✗ Bloqueado';
+            btn.style.background = data.escribir ? '#2a7a2a' : '#c0392b';
+        });
+    }
+
     function abrirEditar(id, username, rol, activo) {
         document.getElementById('formEditar').action = '/usuarios/edit/' + id;
         document.getElementById('ed_username').value = username;

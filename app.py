@@ -91,9 +91,46 @@ class Usuario(UserMixin, db.Model):
     rol      = db.Column(db.String(20), nullable=False, default='operador')  # 'admin' | 'operador'
     activo   = db.Column(db.Boolean, default=True, nullable=False)
 
+class PermisoRol(db.Model):
+    __tablename__ = 'permiso_rol'
+    id       = db.Column(db.Integer, primary_key=True)
+    rol      = db.Column(db.String(20), nullable=False)
+    seccion  = db.Column(db.String(50), nullable=False)
+    escribir = db.Column(db.Boolean, nullable=False, default=False, server_default='false')
+    __table_args__ = (db.UniqueConstraint('rol', 'seccion', name='uq_permiso_rol_seccion'),)
+
+# Secciones configurables
+SECCIONES_PERMISOS = [
+    ('jugadores', 'Jugadores'),
+    ('aportes',   'Aportes de Caja'),
+    ('egresos',   'Egresos de Caja'),
+]
+
+def _seed_permisos_default():
+    """Crea entradas por defecto para el rol operador si no existen."""
+    cambiado = False
+    for seccion, _ in SECCIONES_PERMISOS:
+        if not PermisoRol.query.filter_by(rol='operador', seccion=seccion).first():
+            db.session.add(PermisoRol(rol='operador', seccion=seccion, escribir=False))
+            cambiado = True
+    if cambiado:
+        db.session.commit()
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(Usuario, int(user_id))
+
+@app.context_processor
+def inject_permisos_usuario():
+    if current_user.is_authenticated:
+        if current_user.rol == 'admin':
+            permisos = {s: True for s, _ in SECCIONES_PERMISOS}
+        else:
+            rows = PermisoRol.query.filter_by(rol=current_user.rol).all()
+            permisos = {r.seccion: r.escribir for r in rows}
+    else:
+        permisos = {}
+    return {'permisos_usuario': permisos}
 
 def admin_required(f):
     @wraps(f)
@@ -104,15 +141,21 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
-def operador_blocked(f):
-    """Bloquea acciones de escritura para el rol operador."""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if current_user.rol == 'operador':
-            flash('Tu rol no permite realizar esta acción.', 'error')
-            return redirect(request.referrer or url_for('index'))
-        return f(*args, **kwargs)
-    return decorated
+def requiere_escritura(seccion):
+    """Verifica permiso de escritura en la sección para el rol actual."""
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if current_user.rol == 'admin':
+                return f(*args, **kwargs)
+            permiso = PermisoRol.query.filter_by(rol=current_user.rol, seccion=seccion).first()
+            if not permiso or not permiso.escribir:
+                label = dict(SECCIONES_PERMISOS).get(seccion, seccion)
+                flash(f'Tu rol no tiene permiso de escritura en {label}.', 'error')
+                return redirect(request.referrer or url_for('caja'))
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
 
 
 def calcular_sabados_transcurridos():
@@ -407,8 +450,7 @@ def jugadores_pdf_asistencias():
 # Crear jugador
 @app.route('/add', methods=['POST'])
 @login_required
-@operador_blocked
-def add_jugador():
+@requiere_escritura('jugadores')():
      # Buscar el último código
     ultimo = db.session.query(db.func.max(Jugador.codJugador)).scalar()
     codJugador = (ultimo or 0) + 1  # si no hay jugadores arranca en 1
@@ -457,8 +499,7 @@ def add_jugador():
 # Eliminar jugador
 @app.route('/delete/<int:id>')
 @login_required
-@operador_blocked
-def delete_jugador(id):
+@requiere_escritura('jugadores')(id):
     jugador = Jugador.query.get_or_404(id)
     db.session.delete(jugador)
     db.session.commit()
@@ -491,8 +532,7 @@ def edit_jugador(id):
 # Guardar edición
 @app.route('/update/<int:id>', methods=['POST'])
 @login_required
-@operador_blocked
-def update_jugador(id):
+@requiere_escritura('jugadores')(id):
     jugador = Jugador.query.get_or_404(id)
 
     jugador.codJugador = request.form['codJugador']
@@ -508,8 +548,7 @@ def update_jugador(id):
 
 @app.route('/jugadores/toggle/<int:id>', methods=['POST'])
 @login_required
-@operador_blocked
-def toggle_jugador(id):
+@requiere_escritura('jugadores')(id):
     jugador = Jugador.query.get_or_404(id)
     jugador.activo = not jugador.activo
     db.session.commit()
@@ -517,8 +556,7 @@ def toggle_jugador(id):
 
 @app.route('/jugadores/tarjeta/<int:id>', methods=['POST'])
 @login_required
-@operador_blocked
-def set_tarjeta(id):
+@requiere_escritura('jugadores')(id):
     from flask import jsonify
     jugador = Jugador.query.get_or_404(id)
     tarjeta = request.json.get('tarjeta', '')  # 'am', 'az', 'roja' o ''
@@ -552,6 +590,13 @@ def aportes():
 
         fecha = datetime.strptime(request.form.get('fechaAporte'), "%Y-%m-%d")
         importe = request.form.get('importe')
+
+        # Verificar permiso de escritura en aportes
+        if current_user.rol != 'admin':
+            _p = PermisoRol.query.filter_by(rol=current_user.rol, seccion='aportes').first()
+            if not _p or not _p.escribir:
+                flash('Tu rol no tiene permiso de escritura en Aportes de Caja.', 'error')
+                return redirect(url_for('caja') + f'?tab=aportes&fecha_ap={request.form.get("fechaAporte", "")}')
 
         # Validar duplicado Aporte Jornada: mismo jugador + misma fecha
         jugador_id_int = int(jugador_id) if jugador_id else None
@@ -708,8 +753,7 @@ def caja():
 
 @app.route('/aportes/delete/<int:id>')
 @login_required
-@operador_blocked
-def delete_aporte(id):
+@requiere_escritura('aportes')(id):
     aporte = Aporte.query.get_or_404(id)
     fecha_str = aporte.fechaAporte.strftime("%Y-%m-%d")
     db.session.delete(aporte)
@@ -718,8 +762,7 @@ def delete_aporte(id):
 
 @app.route('/aportes/update/<int:id>', methods=['POST'])
 @login_required
-@operador_blocked
-def update_aporte(id):
+@requiere_escritura('aportes')(id):
     aporte = Aporte.query.get_or_404(id)
     tipo_id = request.form.get('tipo_aporte')
     tipo = TipoAporte.query.get(int(tipo_id)) if tipo_id and str(tipo_id).isdigit() else None
@@ -846,8 +889,7 @@ def aportes_pdf():
 
 @app.route('/egresos', methods=['GET', 'POST'])
 @login_required
-@operador_blocked
-def egresos():
+@requiere_escritura('egresos')():
     tipos = TipoEgreso.query.order_by(TipoEgreso.descripcion.asc()).all()
 
     if request.method == 'POST':
@@ -890,8 +932,7 @@ def egresos():
 
 @app.route('/egresos/tipo/add', methods=['POST'])
 @login_required
-@operador_blocked
-def add_tipo_egreso():
+@requiere_escritura('egresos')():
     desc = request.form.get('descripcion', '').strip()
     if desc:
         existe = TipoEgreso.query.filter_by(descripcion=desc).first()
@@ -902,8 +943,7 @@ def add_tipo_egreso():
 
 @app.route('/egresos/tipo/edit/<int:id>', methods=['POST'])
 @login_required
-@operador_blocked
-def edit_tipo_egreso(id):
+@requiere_escritura('egresos')(id):
     tipo = TipoEgreso.query.get_or_404(id)
     desc = request.form.get('descripcion', '').strip()
     if desc:
@@ -913,8 +953,7 @@ def edit_tipo_egreso(id):
 
 @app.route('/egresos/tipo/delete/<int:id>')
 @login_required
-@operador_blocked
-def delete_tipo_egreso(id):
+@requiere_escritura('egresos')(id):
     tipo = TipoEgreso.query.get_or_404(id)
     if tipo.egresos:
         return redirect(url_for('caja') + '?tab=egresos')
@@ -924,8 +963,7 @@ def delete_tipo_egreso(id):
 
 @app.route('/egresos/delete/<int:id>')
 @login_required
-@operador_blocked
-def delete_egreso(id):
+@requiere_escritura('egresos')(id):
     egreso = Egreso.query.get_or_404(id)
     fecha_str = egreso.fechaEgreso.strftime("%Y-%m-%d")
     db.session.delete(egreso)
@@ -934,8 +972,7 @@ def delete_egreso(id):
 
 @app.route('/egresos/update/<int:id>', methods=['POST'])
 @login_required
-@operador_blocked
-def update_egreso(id):
+@requiere_escritura('egresos')(id):
     egreso  = Egreso.query.get_or_404(id)
     tipo_id = request.form.get('tipo_egreso')
     tipo    = TipoEgreso.query.get(int(tipo_id)) if tipo_id and str(tipo_id).isdigit() else None
@@ -2346,8 +2383,36 @@ def logout():
 @login_required
 @admin_required
 def usuarios():
+    _seed_permisos_default()
     lista = Usuario.query.order_by(Usuario.username).all()
-    return render_template('usuarios.html', usuarios=lista)
+    # Construir matriz {rol: {seccion: escribir}}
+    roles_config = ['operador']
+    permisos_matrix = {}
+    for rol in roles_config:
+        rows = PermisoRol.query.filter_by(rol=rol).all()
+        permisos_matrix[rol] = {r.seccion: r.escribir for r in rows}
+    return render_template('usuarios.html', usuarios=lista,
+                           secciones=SECCIONES_PERMISOS,
+                           roles_config=roles_config,
+                           permisos_matrix=permisos_matrix)
+
+@app.route('/usuarios/permisos/toggle', methods=['POST'])
+@login_required
+@admin_required
+def toggle_permiso():
+    from flask import jsonify
+    rol     = request.json.get('rol', '')
+    seccion = request.json.get('seccion', '')
+    if not rol or not seccion:
+        return jsonify({'ok': False})
+    permiso = PermisoRol.query.filter_by(rol=rol, seccion=seccion).first()
+    if permiso:
+        permiso.escribir = not permiso.escribir
+    else:
+        permiso = PermisoRol(rol=rol, seccion=seccion, escribir=True)
+        db.session.add(permiso)
+    db.session.commit()
+    return jsonify({'ok': True, 'escribir': permiso.escribir})
 
 @app.route('/usuarios/add', methods=['POST'])
 @login_required
@@ -2398,6 +2463,9 @@ def delete_usuario(id):
     return redirect(url_for('usuarios'))
 
 if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+        _seed_permisos_default()
     app.run(debug=True)
 
 
