@@ -450,7 +450,8 @@ def jugadores_pdf_asistencias():
 # Crear jugador
 @app.route('/add', methods=['POST'])
 @login_required
-@requiere_escritura('jugadores')():
+@requiere_escritura('jugadores')
+def add_jugador():
      # Buscar el último código
     ultimo = db.session.query(db.func.max(Jugador.codJugador)).scalar()
     codJugador = (ultimo or 0) + 1  # si no hay jugadores arranca en 1
@@ -499,7 +500,8 @@ def jugadores_pdf_asistencias():
 # Eliminar jugador
 @app.route('/delete/<int:id>')
 @login_required
-@requiere_escritura('jugadores')(id):
+@requiere_escritura('jugadores')
+def delete_jugador(id):
     jugador = Jugador.query.get_or_404(id)
     db.session.delete(jugador)
     db.session.commit()
@@ -532,7 +534,8 @@ def edit_jugador(id):
 # Guardar edición
 @app.route('/update/<int:id>', methods=['POST'])
 @login_required
-@requiere_escritura('jugadores')(id):
+@requiere_escritura('jugadores')
+def update_jugador(id):
     jugador = Jugador.query.get_or_404(id)
 
     jugador.codJugador = request.form['codJugador']
@@ -548,7 +551,8 @@ def edit_jugador(id):
 
 @app.route('/jugadores/toggle/<int:id>', methods=['POST'])
 @login_required
-@requiere_escritura('jugadores')(id):
+@requiere_escritura('jugadores')
+def toggle_jugador(id):
     jugador = Jugador.query.get_or_404(id)
     jugador.activo = not jugador.activo
     db.session.commit()
@@ -556,7 +560,8 @@ def edit_jugador(id):
 
 @app.route('/jugadores/tarjeta/<int:id>', methods=['POST'])
 @login_required
-@requiere_escritura('jugadores')(id):
+@requiere_escritura('jugadores')
+def set_tarjeta(id):
     from flask import jsonify
     jugador = Jugador.query.get_or_404(id)
     tarjeta = request.json.get('tarjeta', '')  # 'am', 'az', 'roja' o ''
@@ -753,7 +758,8 @@ def caja():
 
 @app.route('/aportes/delete/<int:id>')
 @login_required
-@requiere_escritura('aportes')(id):
+@requiere_escritura('aportes')
+def delete_aporte(id):
     aporte = Aporte.query.get_or_404(id)
     fecha_str = aporte.fechaAporte.strftime("%Y-%m-%d")
     db.session.delete(aporte)
@@ -762,7 +768,8 @@ def caja():
 
 @app.route('/aportes/update/<int:id>', methods=['POST'])
 @login_required
-@requiere_escritura('aportes')(id):
+@requiere_escritura('aportes')
+def update_aporte(id):
     aporte = Aporte.query.get_or_404(id)
     tipo_id = request.form.get('tipo_aporte')
     tipo = TipoAporte.query.get(int(tipo_id)) if tipo_id and str(tipo_id).isdigit() else None
@@ -889,7 +896,8 @@ def aportes_pdf():
 
 @app.route('/egresos', methods=['GET', 'POST'])
 @login_required
-@requiere_escritura('egresos')():
+@requiere_escritura('egresos')
+def egresos():
     tipos = TipoEgreso.query.order_by(TipoEgreso.descripcion.asc()).all()
 
     if request.method == 'POST':
@@ -932,7 +940,8 @@ def aportes_pdf():
 
 @app.route('/egresos/tipo/add', methods=['POST'])
 @login_required
-@requiere_escritura('egresos')():
+@requiere_escritura('egresos')
+def add_tipo_egreso():
     desc = request.form.get('descripcion', '').strip()
     if desc:
         existe = TipoEgreso.query.filter_by(descripcion=desc).first()
@@ -943,7 +952,8 @@ def aportes_pdf():
 
 @app.route('/egresos/tipo/edit/<int:id>', methods=['POST'])
 @login_required
-@requiere_escritura('egresos')(id):
+@requiere_escritura('egresos')
+def edit_tipo_egreso(id):
     tipo = TipoEgreso.query.get_or_404(id)
     desc = request.form.get('descripcion', '').strip()
     if desc:
@@ -953,7 +963,8 @@ def aportes_pdf():
 
 @app.route('/egresos/tipo/delete/<int:id>')
 @login_required
-@requiere_escritura('egresos')(id):
+@requiere_escritura('egresos')
+def delete_tipo_egreso(id):
     tipo = TipoEgreso.query.get_or_404(id)
     if tipo.egresos:
         return redirect(url_for('caja') + '?tab=egresos')
@@ -963,7 +974,8 @@ def aportes_pdf():
 
 @app.route('/egresos/delete/<int:id>')
 @login_required
-@requiere_escritura('egresos')(id):
+@requiere_escritura('egresos')
+def delete_egreso(id):
     egreso = Egreso.query.get_or_404(id)
     fecha_str = egreso.fechaEgreso.strftime("%Y-%m-%d")
     db.session.delete(egreso)
@@ -972,7 +984,8 @@ def aportes_pdf():
 
 @app.route('/egresos/update/<int:id>', methods=['POST'])
 @login_required
-@requiere_escritura('egresos')(id):
+@requiere_escritura('egresos')
+def update_egreso(id):
     egreso  = Egreso.query.get_or_404(id)
     tipo_id = request.form.get('tipo_egreso')
     tipo    = TipoEgreso.query.get(int(tipo_id)) if tipo_id and str(tipo_id).isdigit() else None
