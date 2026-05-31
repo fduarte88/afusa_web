@@ -52,6 +52,17 @@
 
     <h1>Gestión de Jugadores <span style="font-size:14px; font-weight:normal; color:#7a8fa6; margin-left:10px;">{{ jugadores|length }} jugador{{ 'es' if jugadores|length != 1 else '' }} registrado{{ 's' if jugadores|length != 1 else '' }}</span></h1>
 
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+    {% if cat == 'permiso_bloqueado' %}
+    <div style="background:#fde8e8; color:#c0392b; border:1px solid #f5c6c6; border-radius:6px;
+                padding:10px 16px; margin-bottom:12px; font-size:13px; font-weight:bold;">
+        ⚠ {{ msg }}
+    </div>
+    {% endif %}
+    {% endfor %}
+    {% endwith %}
+
     <!-- Formulario para agregar jugador -->
     <h2>Agregar Jugador</h2>
     {% if error %}

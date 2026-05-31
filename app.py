@@ -151,7 +151,7 @@ def requiere_escritura(seccion):
             permiso = PermisoRol.query.filter_by(rol=current_user.rol, seccion=seccion).first()
             if not permiso or not permiso.escribir:
                 label = dict(SECCIONES_PERMISOS).get(seccion, seccion)
-                flash(f'Tu rol no tiene permiso de escritura en {label}.', 'error')
+                flash('No puedes realizar operaciones. Consultá con el Administrador del sistema.', 'permiso_bloqueado')
                 return redirect(request.referrer or url_for('caja'))
             return f(*args, **kwargs)
         return decorated
@@ -600,7 +600,7 @@ def aportes():
         if current_user.rol != 'admin':
             _p = PermisoRol.query.filter_by(rol=current_user.rol, seccion='aportes').first()
             if not _p or not _p.escribir:
-                flash('Tu rol no tiene permiso de escritura en Aportes de Caja.', 'error')
+                flash('No puedes realizar operaciones. Consultá con el Administrador del sistema.', 'error_aporte')
                 return redirect(url_for('caja') + f'?tab=aportes&fecha_ap={request.form.get("fechaAporte", "")}')
 
         # Validar duplicado Aporte Jornada: mismo jugador + misma fecha
@@ -612,7 +612,6 @@ def aportes():
                 fechaAporte=fecha.date()
             ).first()
             if duplicado:
-                from flask import flash
                 jugador_dup = Jugador.query.get(jugador_id)
                 nombre_dup = f"{jugador_dup.nombreJugador} {jugador_dup.apellidoJugador}" if jugador_dup else f"ID {jugador_id}"
                 flash(f"Duplicado: {nombre_dup} ya tiene registrado un Aporte de Jornada para el {fecha.strftime('%d/%m/%Y')}.", 'error_aporte')

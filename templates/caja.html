@@ -55,6 +55,17 @@
         <button class="btn-resumen" onclick="imprimirJornada()">Resumen de la Jornada</button>
     </div>
 
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+    {% if cat in ('error_aporte', 'permiso_bloqueado') %}
+    <div style="background:#fde8e8; color:#c0392b; border:1px solid #f5c6c6; border-radius:6px;
+                padding:10px 16px; margin:10px 0 4px 0; font-size:13px; font-weight:bold;">
+        ⚠ {{ msg }}
+    </div>
+    {% endif %}
+    {% endfor %}
+    {% endwith %}
+
     <!-- Pestañas -->
     <div class="tabs">
         <button class="tab-btn" id="btn-aportes" onclick="switchTab('aportes')">Aportes</button>
@@ -63,16 +74,6 @@
 
     <!-- ===== TAB APORTES ===== -->
     <div class="tab-content" id="tab-aportes">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% for cat, msg in messages %}
-        {% if cat == 'error_aporte' %}
-        <div style="background:#fde8e8; color:#c0392b; border:1px solid #f5c6c6; border-radius:6px;
-                    padding:10px 16px; margin-bottom:14px; font-size:13px; font-weight:bold;">
-            ⚠ {{ msg }}
-        </div>
-        {% endif %}
-        {% endfor %}
-        {% endwith %}
         <form id="formAporte" action="{{ url_for('aportes') }}" method="POST">
             <input type="hidden" id="mes_destino" name="mes_destino" value="">
 
