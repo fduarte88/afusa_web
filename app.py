@@ -1559,6 +1559,286 @@ def informes_pdf_general():
     return Response(buf, mimetype='application/pdf',
                     headers={'Content-Disposition': 'inline; filename="informe_general.pdf"'})
 
+@app.route('/informes/pdf/egresos/resumen')
+@login_required
+def informes_pdf_egresos_resumen():
+    desde_str = request.args.get('desde', '')
+    hasta_str = request.args.get('hasta', '')
+    try:
+        desde = datetime.strptime(desde_str, "%Y-%m-%d").date()
+        hasta = datetime.strptime(hasta_str, "%Y-%m-%d").date()
+    except ValueError:
+        return "Fechas inválidas", 400
+
+    meses_n = ['enero','febrero','marzo','abril','mayo','junio',
+               'julio','agosto','septiembre','octubre','noviembre','diciembre']
+    dias_n  = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo']
+    hoy = datetime.now()
+    fecha_larga = f"{dias_n[hoy.weekday()]} {hoy.day} de {meses_n[hoy.month-1]} de {hoy.year}".capitalize()
+    subtitulo = (f"{desde.day} de {meses_n[desde.month-1]} de {desde.year}"
+                 f" al {hasta.day} de {meses_n[hasta.month-1]} de {hasta.year}")
+
+    egresos = (Egreso.query
+               .filter(Egreso.fechaEgreso >= desde, Egreso.fechaEgreso <= hasta)
+               .join(TipoEgreso, Egreso.codTipoEgreso == TipoEgreso.idTipoEgreso)
+               .order_by(TipoEgreso.descripcion.asc())
+               .all())
+
+    from reportlab.lib.pagesizes import A4, portrait
+    from itertools import groupby
+
+    buf = io.BytesIO()
+    margen = 1.8 * cm
+    doc = SimpleDocTemplate(buf, pagesize=portrait(A4),
+                            leftMargin=margen, rightMargin=margen,
+                            topMargin=margen, bottomMargin=margen)
+
+    c_rojo   = colors.HexColor('#8a2c2c')
+    c_borde  = colors.HexColor('#aaaaaa')
+    c_header = colors.HexColor('#c0392b')
+    c_alt    = colors.HexColor('#f8f0f0')
+    c_sub    = colors.HexColor('#f0dcdc')
+    c_tot    = colors.HexColor('#8a2c2c')
+
+    styles   = getSampleStyleSheet()
+    titulo_st = ParagraphStyle('t', fontSize=14, fontName='Helvetica-Bold',
+                               textColor=c_rojo, alignment=TA_CENTER, spaceAfter=2)
+    sub_st    = ParagraphStyle('s', fontSize=10, alignment=TA_CENTER, spaceAfter=2)
+    fecha_st  = ParagraphStyle('f', fontSize=9, alignment=TA_CENTER,
+                               textColor=colors.HexColor('#666666'), spaceAfter=10)
+    h_st      = ParagraphStyle('h', fontSize=9, fontName='Helvetica-Bold', alignment=TA_CENTER)
+    cell_st   = ParagraphStyle('c', fontSize=9)
+    cell_r_st = ParagraphStyle('cr', fontSize=9, alignment=2)
+
+    def fmt_gs(val):
+        try: return f"Gs. {int(val):,}".replace(',', '.')
+        except: return str(val)
+
+    ancho  = A4[0] - 2 * margen
+    col_w  = [3.5*cm, 0, 2.8*cm]
+    col_w[1] = ancho - col_w[0] - col_w[2]
+
+    elementos = [
+        Paragraph(f"AFUSA — Resumen de Egresos", titulo_st),
+        Paragraph(subtitulo, sub_st),
+        HRFlowable(width="100%", thickness=0.4, color=c_rojo, spaceBefore=4, spaceAfter=6),
+        Paragraph(fecha_larga, fecha_st),
+    ]
+
+    # Encabezado
+    filas = [[
+        Paragraph('<b>Tipo de Egreso</b>', h_st),
+        Paragraph('<b>Descripción</b>',    h_st),
+        Paragraph('<b>Total</b>',          h_st),
+    ]]
+    estilos = []
+    total_general = 0
+
+    key_fn = lambda e: e.tipo_egreso.descripcion if e.tipo_egreso else ''
+    for tipo_desc, grupo in groupby(egresos, key=key_fn):
+        grupo = list(grupo)
+        subtotal = sum(float(e.importe) for e in grupo)
+        total_general += subtotal
+        # Una sola fila de resumen por tipo
+        idx = len(filas)
+        bg = c_alt if idx % 2 == 0 else colors.white
+        filas.append([
+            Paragraph(tipo_desc, cell_st),
+            Paragraph(f"{len(grupo)} registro{'s' if len(grupo) != 1 else ''}", cell_st),
+            Paragraph(fmt_gs(subtotal), cell_r_st),
+        ])
+        estilos.append(('BACKGROUND', (0, idx), (-1, idx), bg))
+
+    if not egresos:
+        filas.append([Paragraph('Sin egresos en el período.', ParagraphStyle('nr', fontSize=9,
+                      textColor=colors.HexColor('#aaa'), alignment=TA_CENTER)),
+                      Paragraph('', cell_st), Paragraph('', cell_st)])
+        estilos.append(('SPAN', (0, len(filas)-1), (-1, len(filas)-1)))
+    else:
+        idx_tot = len(filas)
+        filas.append([
+            Paragraph('', cell_st),
+            Paragraph('<b>TOTAL GENERAL</b>', ParagraphStyle('tot', fontSize=10,
+                      fontName='Helvetica-Bold', alignment=2)),
+            Paragraph(f'<b>{fmt_gs(total_general)}</b>', ParagraphStyle('totv', fontSize=10,
+                      fontName='Helvetica-Bold', alignment=2)),
+        ])
+        estilos.append(('BACKGROUND', (0, idx_tot), (-1, idx_tot), c_tot))
+        estilos.append(('TEXTCOLOR',  (0, idx_tot), (-1, idx_tot), colors.white))
+
+    tabla = Table(filas, colWidths=col_w, repeatRows=1)
+    tabla.setStyle(TableStyle([
+        ('BACKGROUND',    (0,0), (-1,0),  c_header),
+        ('TEXTCOLOR',     (0,0), (-1,0),  colors.white),
+        ('ALIGN',         (0,0), (-1,0),  'CENTER'),
+        ('VALIGN',        (0,0), (-1,-1), 'MIDDLE'),
+        ('FONTSIZE',      (0,0), (-1,-1), 9),
+        ('GRID',          (0,0), (-1,-1), 0.4, c_borde),
+        ('TOPPADDING',    (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('LEFTPADDING',   (0,0), (-1,-1), 5),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 5),
+        *estilos,
+    ]))
+    elementos.append(tabla)
+    doc.build(elementos)
+    buf.seek(0)
+    return Response(buf, mimetype='application/pdf',
+                    headers={'Content-Disposition': f'inline; filename="egresos_resumen_{desde_str}_{hasta_str}.pdf"'})
+
+
+@app.route('/informes/pdf/egresos/detalle')
+@login_required
+def informes_pdf_egresos_detalle():
+    desde_str = request.args.get('desde', '')
+    hasta_str = request.args.get('hasta', '')
+    try:
+        desde = datetime.strptime(desde_str, "%Y-%m-%d").date()
+        hasta = datetime.strptime(hasta_str, "%Y-%m-%d").date()
+    except ValueError:
+        return "Fechas inválidas", 400
+
+    meses_n = ['enero','febrero','marzo','abril','mayo','junio',
+               'julio','agosto','septiembre','octubre','noviembre','diciembre']
+    dias_n  = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo']
+    hoy = datetime.now()
+    fecha_larga = f"{dias_n[hoy.weekday()]} {hoy.day} de {meses_n[hoy.month-1]} de {hoy.year}".capitalize()
+    subtitulo = (f"{desde.day} de {meses_n[desde.month-1]} de {desde.year}"
+                 f" al {hasta.day} de {meses_n[hasta.month-1]} de {hasta.year}")
+
+    egresos = (Egreso.query
+               .filter(Egreso.fechaEgreso >= desde, Egreso.fechaEgreso <= hasta)
+               .join(TipoEgreso, Egreso.codTipoEgreso == TipoEgreso.idTipoEgreso)
+               .order_by(TipoEgreso.descripcion.asc(), Egreso.fechaEgreso.asc())
+               .all())
+
+    from reportlab.lib.pagesizes import A4, portrait
+    from itertools import groupby
+
+    buf = io.BytesIO()
+    margen = 1.8 * cm
+    doc = SimpleDocTemplate(buf, pagesize=portrait(A4),
+                            leftMargin=margen, rightMargin=margen,
+                            topMargin=margen, bottomMargin=margen)
+
+    c_rojo   = colors.HexColor('#8a2c2c')
+    c_borde  = colors.HexColor('#aaaaaa')
+    c_header = colors.HexColor('#c0392b')
+    c_alt    = colors.HexColor('#f8f0f0')
+    c_sub    = colors.HexColor('#f0dcdc')
+    c_tot    = colors.HexColor('#8a2c2c')
+
+    styles   = getSampleStyleSheet()
+    titulo_st = ParagraphStyle('t', fontSize=14, fontName='Helvetica-Bold',
+                               textColor=c_rojo, alignment=TA_CENTER, spaceAfter=2)
+    sub_st    = ParagraphStyle('s', fontSize=10, alignment=TA_CENTER, spaceAfter=2)
+    fecha_st  = ParagraphStyle('f', fontSize=9, alignment=TA_CENTER,
+                               textColor=colors.HexColor('#666666'), spaceAfter=10)
+    h_st      = ParagraphStyle('h', fontSize=9, fontName='Helvetica-Bold', alignment=TA_CENTER)
+    cell_st   = ParagraphStyle('c', fontSize=9)
+    cell_r_st = ParagraphStyle('cr', fontSize=9, alignment=2)
+
+    def fmt_gs(val):
+        try: return f"Gs. {int(val):,}".replace(',', '.')
+        except: return str(val)
+
+    ancho  = A4[0] - 2 * margen
+    col_w  = [2.5*cm, 0, 3*cm, 2.8*cm]
+    col_w[1] = ancho - col_w[0] - col_w[2] - col_w[3]
+
+    elementos = [
+        Paragraph(f"AFUSA — Detalle de Egresos", titulo_st),
+        Paragraph(subtitulo, sub_st),
+        HRFlowable(width="100%", thickness=0.4, color=c_rojo, spaceBefore=4, spaceAfter=6),
+        Paragraph(fecha_larga, fecha_st),
+    ]
+
+    filas = [[
+        Paragraph('<b>Fecha</b>',       h_st),
+        Paragraph('<b>Descripción</b>', h_st),
+        Paragraph('<b>Tipo</b>',        h_st),
+        Paragraph('<b>Importe</b>',     h_st),
+    ]]
+    estilos = []
+    total_general = 0
+
+    key_fn = lambda e: e.tipo_egreso.descripcion if e.tipo_egreso else ''
+    for tipo_desc, grupo in groupby(egresos, key=key_fn):
+        grupo = list(grupo)
+        subtotal = sum(float(e.importe) for e in grupo)
+        total_general += subtotal
+
+        # Fila de encabezado de grupo
+        idx_grp = len(filas)
+        filas.append([
+            Paragraph(f'<b>{tipo_desc}</b>', ParagraphStyle('g', fontSize=9,
+                      fontName='Helvetica-Bold', textColor=colors.white)),
+            Paragraph('', h_st), Paragraph('', h_st), Paragraph('', h_st),
+        ])
+        estilos.append(('BACKGROUND', (0, idx_grp), (-1, idx_grp), c_rojo))
+        estilos.append(('SPAN',       (0, idx_grp), (-1, idx_grp)))
+
+        for i, e in enumerate(grupo):
+            bg = c_alt if i % 2 == 0 else colors.white
+            idx_f = len(filas)
+            filas.append([
+                Paragraph(e.fechaEgreso.strftime('%d/%m/%Y'), cell_st),
+                Paragraph(e.descripcion or '—', cell_st),
+                Paragraph(e.tipo_egreso.descripcion if e.tipo_egreso else '', cell_st),
+                Paragraph(fmt_gs(e.importe), cell_r_st),
+            ])
+            estilos.append(('BACKGROUND', (0, idx_f), (-1, idx_f), bg))
+
+        # Subtotal por tipo
+        idx_sub = len(filas)
+        filas.append([
+            Paragraph('', cell_st), Paragraph('', cell_st),
+            Paragraph(f'<b>Subtotal</b>', ParagraphStyle('sb', fontSize=9,
+                      fontName='Helvetica-Bold', alignment=2)),
+            Paragraph(f'<b>{fmt_gs(subtotal)}</b>', ParagraphStyle('sbv', fontSize=9,
+                      fontName='Helvetica-Bold', alignment=2)),
+        ])
+        estilos.append(('BACKGROUND', (0, idx_sub), (-1, idx_sub), c_sub))
+        estilos.append(('LINEABOVE',  (0, idx_sub), (-1, idx_sub), 0.5, c_borde))
+
+    if not egresos:
+        filas.append([Paragraph('Sin egresos en el período.', ParagraphStyle('nr', fontSize=9,
+                      textColor=colors.HexColor('#aaa'), alignment=TA_CENTER)),
+                      Paragraph('', cell_st), Paragraph('', cell_st), Paragraph('', cell_st)])
+        estilos.append(('SPAN', (0, len(filas)-1), (-1, len(filas)-1)))
+    else:
+        idx_tot = len(filas)
+        filas.append([
+            Paragraph('', cell_st), Paragraph('', cell_st),
+            Paragraph('<b>TOTAL GENERAL</b>', ParagraphStyle('tot', fontSize=10,
+                      fontName='Helvetica-Bold', alignment=2)),
+            Paragraph(f'<b>{fmt_gs(total_general)}</b>', ParagraphStyle('totv', fontSize=10,
+                      fontName='Helvetica-Bold', alignment=2)),
+        ])
+        estilos.append(('BACKGROUND', (0, idx_tot), (-1, idx_tot), c_tot))
+        estilos.append(('TEXTCOLOR',  (0, idx_tot), (-1, idx_tot), colors.white))
+
+    tabla = Table(filas, colWidths=col_w, repeatRows=1)
+    tabla.setStyle(TableStyle([
+        ('BACKGROUND',    (0,0), (-1,0),  c_header),
+        ('TEXTCOLOR',     (0,0), (-1,0),  colors.white),
+        ('ALIGN',         (0,0), (-1,0),  'CENTER'),
+        ('VALIGN',        (0,0), (-1,-1), 'MIDDLE'),
+        ('FONTSIZE',      (0,0), (-1,-1), 9),
+        ('GRID',          (0,0), (-1,-1), 0.4, c_borde),
+        ('TOPPADDING',    (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('LEFTPADDING',   (0,0), (-1,-1), 5),
+        ('RIGHTPADDING',  (0,0), (-1,-1), 5),
+        *estilos,
+    ]))
+    elementos.append(tabla)
+    doc.build(elementos)
+    buf.seek(0)
+    return Response(buf, mimetype='application/pdf',
+                    headers={'Content-Disposition': f'inline; filename="egresos_detalle_{desde_str}_{hasta_str}.pdf"'})
+
+
 @app.route('/informes/pdf/jugador')
 @login_required
 def informes_pdf_jugador():

@@ -194,7 +194,7 @@
             </thead>
             <tbody>
                 {% for a in aportes|sort(attribute='jugador') %}
-                <tr data-tipo="{{ a.tipo }}">
+                <tr data-tipo="{{ a.tipo }}" data-importe="{{ a.importe }}">
                     <td>{{ a.codJugador }}</td>
                     <td>{{ a.jugador }}</td>
                     <td>{{ a.tipo }}</td>
@@ -209,6 +209,7 @@
                 <tr><td colspan="6">No hay aportes registrados.</td></tr>
                 {% endfor %}
             </tbody>
+            <tfoot id="totalesAportes"></tfoot>
         </table>
 
         <!-- Modal editar aporte -->
@@ -455,6 +456,7 @@
         if (p !== 'egresos') {
             setTimeout(() => document.getElementById('codigo_jugador').focus(), 80);
         }
+        calcularTotalesAportes();
     })();
 
     // --- Mostrar últimas participaciones en jornada ---
@@ -879,6 +881,56 @@
             const tipo = fila.getAttribute('data-tipo');
             fila.style.display = (!tipo || activos.includes(tipo)) ? '' : 'none';
         });
+        calcularTotalesAportes();
+    }
+
+    // --- Totalizador de aportes ---
+    function calcularTotalesAportes() {
+        const tfoot = document.getElementById('totalesAportes');
+        const rows  = document.querySelectorAll('#tablaHistorialAportes tbody tr[data-tipo]');
+
+        const totales = {};
+        let totalCount = 0, totalSum = 0;
+
+        rows.forEach(function(row) {
+            if (row.style.display === 'none') return;
+            const tipo    = row.dataset.tipo;
+            const importe = parseFloat(row.dataset.importe) || 0;
+            if (!totales[tipo]) totales[tipo] = { count: 0, sum: 0 };
+            totales[tipo].count++;
+            totales[tipo].sum += importe;
+            totalCount++;
+            totalSum += importe;
+        });
+
+        const fmtGs = n => 'Gs. ' + Math.round(n).toLocaleString('es-PY');
+
+        tfoot.innerHTML = '';
+
+        if (totalCount === 0) return;
+
+        // Una fila por tipo
+        Object.entries(totales).sort((a, b) => a[0].localeCompare(b[0], 'es'))
+        .forEach(function([tipo, data]) {
+            const tr = document.createElement('tr');
+            tr.style.cssText = 'background:#eef2f7; font-size:11px;';
+            tr.innerHTML =
+                `<td colspan="2" style="text-align:right; padding:3px 8px; color:#2c5f8a; font-weight:bold;">${tipo}</td>` +
+                `<td style="text-align:center; padding:3px 6px; color:#555;">${data.count} reg.</td>` +
+                `<td style="text-align:right; padding:3px 8px; font-weight:bold;">${fmtGs(data.sum)}</td>` +
+                `<td colspan="2"></td>`;
+            tfoot.appendChild(tr);
+        });
+
+        // Fila total general
+        const trTot = document.createElement('tr');
+        trTot.style.cssText = 'background:#2c5f8a; color:#fff; font-weight:bold; font-size:12px;';
+        trTot.innerHTML =
+            `<td colspan="2" style="text-align:right; padding:4px 8px;">TOTAL</td>` +
+            `<td style="text-align:center; padding:4px 6px;">${totalCount} reg.</td>` +
+            `<td style="text-align:right; padding:4px 8px;">${fmtGs(totalSum)}</td>` +
+            `<td colspan="2"></td>`;
+        tfoot.appendChild(trTot);
     }
 
     // --- Editar tipo de egreso ---

@@ -8,51 +8,60 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
     <style>
+        .grid-informes {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            margin-top: 20px;
+        }
         .informe-box {
             border: 1px solid #ccc;
             border-radius: 8px;
-            padding: 24px 28px;
-            margin-top: 24px;
-            max-width: 520px;
+            padding: 18px 20px;
             background: #fff;
         }
         .informe-box h2 {
             margin-top: 0;
-            font-size: 15px;
+            font-size: 14px;
             color: #2c5f8a;
             border-bottom: 1px solid #ddd;
-            padding-bottom: 8px;
-            margin-bottom: 16px;
+            padding-bottom: 7px;
+            margin-bottom: 12px;
+        }
+        .informe-box p {
+            font-size: 11px;
+            color: #666;
+            margin-top: -6px;
+            margin-bottom: 12px;
         }
         .informe-row {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 14px;
+            gap: 10px;
+            margin-bottom: 10px;
         }
         .informe-row label {
-            width: 100px;
-            font-size: 13px;
+            width: 90px;
+            font-size: 12px;
             font-weight: bold;
+            flex-shrink: 0;
         }
         .informe-row input {
-            width: 130px;
-            font-size: 13px;
+            width: 120px;
+            font-size: 12px;
         }
         .btn-informe {
-            padding: 9px 20px;
+            padding: 7px 14px;
             background: #2c5f8a;
             color: #fff;
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: bold;
         }
-        .btn-informe:hover { background: #1e4a6e; }
+        .btn-informe:hover { filter: brightness(0.88); }
         .btn-informe.verde { background: #2a7a2a; }
-        .btn-informe.verde:hover { background: #1e5c1e; }
-        .sep { margin: 28px 0 0 0; border: none; border-top: 1px solid #e0e0e0; }
     </style>
 </head>
 <body>
@@ -80,129 +89,133 @@
     <div style="margin: 30px;">
         <h1>Informes Generales</h1>
 
-        <!-- Informe del período -->
-        <div class="informe-box">
-            <h2>Informe del Período</h2>
-            <p style="font-size:12px; color:#666; margin-top:-8px; margin-bottom:16px;">
-                Muestra el resumen de aportes y egresos en el rango de fechas seleccionado.
-            </p>
-            <div class="informe-row">
-                <label>Fecha desde:</label>
-                <input type="text" id="fecha_desde" placeholder="DD/MM/AAAA" readonly>
-            </div>
-            <div class="informe-row">
-                <label>Fecha hasta:</label>
-                <input type="text" id="fecha_hasta" placeholder="DD/MM/AAAA" readonly>
-            </div>
-            <div style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap;">
-                <button class="btn-informe" onclick="generarPeriodo()">Resumen del Período</button>
-                <button class="btn-informe" style="background:#2a7a2a;" onclick="generarDetallePeriodo()">Detalle del Período</button>
-            </div>
-        </div>
+        <div class="grid-informes">
 
-        <hr class="sep">
+            <!-- Informe del período -->
+            <div class="informe-box">
+                <h2>Informe del Período</h2>
+                <p>Resumen de aportes y egresos en el rango de fechas seleccionado.</p>
+                <div class="informe-row">
+                    <label>Fecha desde:</label>
+                    <input type="text" id="fecha_desde" placeholder="DD/MM/AAAA" readonly>
+                </div>
+                <div class="informe-row">
+                    <label>Fecha hasta:</label>
+                    <input type="text" id="fecha_hasta" placeholder="DD/MM/AAAA" readonly>
+                </div>
+                <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="btn-informe" onclick="generarPeriodo()">Resumen del Período</button>
+                    <button class="btn-informe" style="background:#2a7a2a;" onclick="generarDetallePeriodo()">Detalle del Período</button>
+                </div>
+            </div>
 
-        <!-- Progreso mensualidades -->
-        <div class="informe-box" style="margin-top:20px;">
-            <h2>Progreso de Mensualidades</h2>
-            <p style="font-size:12px; color:#666; margin-top:-8px; margin-bottom:16px;">
-                Muestra el pago de mensualidad de cada jugador, mes por mes, para el año seleccionado.
-            </p>
-            <div class="informe-row">
-                <label>Año:</label>
-                <select id="anio_mens" class="form-control" style="width:100px; font-size:13px;">
-                    <option value="2026" selected>2026</option>
-                    <option value="2025">2025</option>
-                    <option value="2027">2027</option>
-                </select>
+            <!-- Progreso mensualidades -->
+            <div class="informe-box">
+                <h2>Progreso de Mensualidades</h2>
+                <p>Pago de mensualidad de cada jugador, mes por mes, para el año seleccionado.</p>
+                <div class="informe-row">
+                    <label>Año:</label>
+                    <select id="anio_mens" style="width:90px; font-size:12px; padding:3px 6px;">
+                        <option value="2025">2025</option>
+                        <option value="2026" selected>2026</option>
+                        <option value="2027">2027</option>
+                    </select>
+                </div>
+                <div class="informe-row">
+                    <label>Cód. Jugador:</label>
+                    <input type="number" id="cod_jugador_detalle" placeholder="Todos" style="width:90px; font-size:12px; padding:3px 6px;">
+                </div>
+                <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="btn-informe" style="background:#6a3d8a;" onclick="generarMensualidades()">Progreso Mensualidades</button>
+                    <button class="btn-informe" style="background:#3d6a8a;" onclick="generarMensualidadesDetalle()">Detalle de Fechas</button>
+                </div>
             </div>
-            <div class="informe-row" style="margin-top:14px;">
-                <label>Cód. Jugador:</label>
-                <input type="number" id="cod_jugador_detalle" placeholder="Todos" style="width:100px; font-size:13px; padding:3px 8px;">
-            </div>
-            <div style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap;">
-                <button class="btn-informe" style="background:#6a3d8a;" onclick="generarMensualidades()">Progreso Mensualidades</button>
-                <button class="btn-informe" style="background:#3d6a8a;" onclick="generarMensualidadesDetalle()">Detalle de Fechas</button>
-            </div>
-        </div>
 
-        <hr class="sep">
+            <!-- Reportes de Egresos -->
+            <div class="informe-box">
+                <h2>Reportes de Egresos</h2>
+                <p>Resumen o detalle de egresos agrupados por tipo en el período seleccionado.</p>
+                <div class="informe-row">
+                    <label>Fecha desde:</label>
+                    <input type="text" id="eg_desde" placeholder="DD/MM/AAAA" readonly>
+                </div>
+                <div class="informe-row">
+                    <label>Fecha hasta:</label>
+                    <input type="text" id="eg_hasta" placeholder="DD/MM/AAAA" readonly>
+                </div>
+                <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
+                    <button class="btn-informe" style="background:#8a2c2c;" onclick="generarEgresosResumen()">Resumen de Egresos</button>
+                    <button class="btn-informe" style="background:#c0392b;" onclick="generarEgresosDetalle()">Detalle de Egresos</button>
+                </div>
+            </div>
 
-        <!-- Estado de Cuenta por Jugador -->
-        <div class="informe-box" style="margin-top:20px;">
-            <h2>Estado de Cuenta por Jugador</h2>
-            <p style="font-size:12px; color:#666; margin-top:-8px; margin-bottom:16px;">
-                Detalle de pagos del jugador seleccionado, agrupados por tipo de aporte.
-            </p>
-            <div class="informe-row">
-                <label>Jugador:</label>
-                <select id="jugador_ec" style="font-size:13px; padding:4px 8px; border:1px solid #ccc; border-radius:5px; width:280px;">
-                    <option value="">— Seleccionar —</option>
-                    {% for j in jugadores %}
-                    <option value="{{ j.id }}">{{ j.codJugador }} · {{ j.nombreJugador }} {{ j.apellidoJugador }}</option>
-                    {% endfor %}
-                </select>
+            <!-- Estado de Cuenta por Jugador -->
+            <div class="informe-box">
+                <h2>Estado de Cuenta por Jugador</h2>
+                <p>Detalle de pagos del jugador seleccionado, agrupados por tipo de aporte.</p>
+                <div class="informe-row">
+                    <label>Jugador:</label>
+                    <select id="jugador_ec" style="font-size:12px; padding:3px 6px; border:1px solid #ccc; border-radius:5px; flex:1;">
+                        <option value="">— Seleccionar —</option>
+                        {% for j in jugadores %}
+                        <option value="{{ j.id }}">{{ j.codJugador }} · {{ j.nombreJugador }} {{ j.apellidoJugador }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="informe-row">
+                    <label>Año:</label>
+                    <select id="anio_ec" style="font-size:12px; padding:3px 6px; border:1px solid #ccc; border-radius:5px; width:90px;">
+                        {% for y in range(anio_actual - 1, anio_actual + 2) %}
+                        <option value="{{ y }}" {{ 'selected' if y == anio_actual }}>{{ y }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="margin-top:14px;">
+                    <button class="btn-informe" style="background:#7a5c2a;" onclick="generarEstadoCuenta()">Estado de Cuenta</button>
+                </div>
             </div>
-            <div class="informe-row">
-                <label>Año:</label>
-                <select id="anio_ec" style="font-size:13px; padding:4px 8px; border:1px solid #ccc; border-radius:5px; width:100px;">
-                    {% for y in range(anio_actual - 1, anio_actual + 2) %}
-                    <option value="{{ y }}" {{ 'selected' if y == anio_actual }}>{{ y }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div style="margin-top:18px;">
-                <button class="btn-informe" style="background:#7a5c2a;" onclick="generarEstadoCuenta()">Estado de Cuenta</button>
-            </div>
-        </div>
 
-        <hr class="sep">
-
-        <!-- Registro de Asistencias -->
-        <div class="informe-box" style="margin-top:20px;">
-            <h2>Registro de Asistencias</h2>
-            <p style="font-size:12px; color:#666; margin-top:-8px; margin-bottom:16px;">
-                Lista de jugadores activos con asistencia % y partidos del año en curso.
-            </p>
-            <div class="informe-row">
-                <label>Ordenar por:</label>
-                <select id="orden_asist" style="font-size:13px; padding:4px 8px; border:1px solid #ccc; border-radius:5px;">
-                    <option value="nombre">Nombre</option>
-                    <option value="partidos">Partidos disputados</option>
-                    <option value="pct">Porcentaje de asistencia</option>
-                </select>
+            <!-- Registro de Asistencias -->
+            <div class="informe-box">
+                <h2>Registro de Asistencias</h2>
+                <p>Lista de jugadores activos con asistencia % y partidos del año en curso.</p>
+                <div class="informe-row">
+                    <label>Ordenar por:</label>
+                    <select id="orden_asist" style="font-size:12px; padding:3px 6px; border:1px solid #ccc; border-radius:5px; flex:1;">
+                        <option value="nombre">Nombre</option>
+                        <option value="partidos">Partidos disputados</option>
+                        <option value="pct">Porcentaje de asistencia</option>
+                    </select>
+                </div>
+                <div style="margin-top:14px;">
+                    <button class="btn-informe" style="background:#5b7fa6;" onclick="generarAsistencias()">Registro de Asistencias</button>
+                </div>
             </div>
-            <div style="margin-top:18px;">
-                <button class="btn-informe" style="background:#5b7fa6;" onclick="generarAsistencias()">Registro de Asistencias</button>
-            </div>
-        </div>
 
-        <hr class="sep">
-
-        <!-- Resumen general -->
-        <div class="informe-box" style="margin-top:20px;">
-            <h2>Resumen General</h2>
-            <p style="font-size:12px; color:#666; margin-top:-8px; margin-bottom:16px;">
-                Muestra el total acumulado de aportes y egresos de todos los registros.
-            </p>
-            <div style="margin-top:8px;">
-                <button class="btn-informe verde" onclick="generarGeneral()">Resumen General</button>
+            <!-- Resumen general -->
+            <div class="informe-box">
+                <h2>Resumen General</h2>
+                <p>Total acumulado de aportes y egresos de todos los registros.</p>
+                <div style="margin-top:14px;">
+                    <button class="btn-informe verde" onclick="generarGeneral()">Resumen General</button>
+                </div>
             </div>
+
         </div>
     </div>
 
     <script>
         const fpDesde = flatpickr('#fecha_desde', {
-            locale: "es",
-            dateFormat: "Y-m-d",
-            altInput: true,
-            altFormat: "d/m/Y",
+            locale: "es", dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y",
         });
         const fpHasta = flatpickr('#fecha_hasta', {
-            locale: "es",
-            dateFormat: "Y-m-d",
-            altInput: true,
-            altFormat: "d/m/Y",
+            locale: "es", dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y",
+        });
+        const fpEgDesde = flatpickr('#eg_desde', {
+            locale: "es", dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y",
+        });
+        const fpEgHasta = flatpickr('#eg_hasta', {
+            locale: "es", dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y",
         });
 
         function _validarFechas() {
@@ -221,6 +234,24 @@
         function generarDetallePeriodo() {
             const f = _validarFechas(); if (!f) return;
             window.open('/informes/pdf/periodo/detalle?desde=' + f.desde + '&hasta=' + f.hasta, '_blank');
+        }
+
+        function _validarFechasEg() {
+            const desde = document.getElementById('eg_desde').value;
+            const hasta = document.getElementById('eg_hasta').value;
+            if (!desde || !hasta) { alert('Seleccioná las fechas desde y hasta.'); return null; }
+            if (desde > hasta)    { alert('La fecha "desde" debe ser anterior o igual a "hasta".'); return null; }
+            return { desde, hasta };
+        }
+
+        function generarEgresosResumen() {
+            const f = _validarFechasEg(); if (!f) return;
+            window.open('/informes/pdf/egresos/resumen?desde=' + f.desde + '&hasta=' + f.hasta, '_blank');
+        }
+
+        function generarEgresosDetalle() {
+            const f = _validarFechasEg(); if (!f) return;
+            window.open('/informes/pdf/egresos/detalle?desde=' + f.desde + '&hasta=' + f.hasta, '_blank');
         }
 
         function generarEstadoCuenta() {
