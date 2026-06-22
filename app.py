@@ -36,7 +36,7 @@ class Jugador(db.Model):
     apellidoJugador = db.Column(db.String(100), nullable=False)
     numeroDocumento = db.Column(db.String(20), unique=True, nullable=False)
     fechaNacimiento = db.Column(db.Date, nullable=False)
-    adddate = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())
+    adddate = db.Column(db.DateTime, default=db.func.now())
     alias = db.Column(db.String(50), nullable=True)
     activo = db.Column(db.Boolean, nullable=False, default=True, server_default='true')
     tarjeta_am  = db.Column(db.Boolean, nullable=False, default=False, server_default='false')
@@ -158,6 +158,30 @@ def requiere_escritura(seccion):
     return decorator
 
 
+def _calcular_progreso_mensualidades(anio_actual):
+    """Estado de pago de Mensualidad mes a mes (jugador_id -> {meses:[bool x12], count:int})."""
+    import re as _re
+    VALOR_MES_MENSUALIDAD = 20000
+    MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
+    tipo_m = TipoAporte.query.filter_by(descripcion='Mensualidad').first()
+    pagos_raw = {}
+    if tipo_m:
+        for a in Aporte.query.filter(Aporte.codTipoAporte == tipo_m.idTipoAporte).all():
+            m = _re.match(r'^mes:(\d{4})-(\d{2})$', a.descripcion or '')
+            a_anio, a_mes = (int(m.group(1)), int(m.group(2))) if m else (a.fechaAporte.year, a.fechaAporte.month)
+            if a_anio != anio_actual:
+                continue
+            pagos_raw.setdefault(a.idJugador, {})
+            pagos_raw[a.idJugador][a_mes] = pagos_raw[a.idJugador].get(a_mes, 0) + int(a.importe)
+
+    mensualidades_jug = {}
+    for jid, meses in pagos_raw.items():
+        estado = [meses.get(m, 0) >= VALOR_MES_MENSUALIDAD for m in range(1, 13)]
+        mensualidades_jug[jid] = {'meses': estado, 'count': sum(estado)}
+    mensualidad_vacia = {'meses': [False] * 12, 'count': 0}
+    return mensualidades_jug, mensualidad_vacia, MESES_CORTOS
+
+
 def calcular_sabados_transcurridos():
     """Sábados transcurridos desde el 1 de enero del año actual hasta hoy (inclusive)."""
     from datetime import date, timedelta
@@ -197,8 +221,13 @@ def index():
         actividad = {r.idJugador: {'partidos': r.partidos, 'ultima': r.ultima_fecha} for r in stats}
 
     total_sabados = calcular_sabados_transcurridos()
+    mensualidades_jug, mensualidad_vacia, meses_cortos = _calcular_progreso_mensualidades(anio_actual)
+    hoy_str = datetime.now().strftime('%Y-%m-%d')
+
     return render_template('jugadores.html', jugadores=jugadores, siguiente_codigo=siguiente_codigo,
-                           actividad=actividad, anio_actual=anio_actual, total_sabados=total_sabados)
+                           actividad=actividad, anio_actual=anio_actual, total_sabados=total_sabados,
+                           mensualidades_jug=mensualidades_jug, mensualidad_vacia=mensualidad_vacia,
+                           meses_cortos=meses_cortos, hoy_str=hoy_str)
 
 # PDF listado de jugadores
 @app.route('/jugadores/pdf')
@@ -461,6 +490,7 @@ def add_jugador():
     documento = request.form['numeroDocumento']
     fechaNacimiento = request.form['fechaNacimiento']  # AAAA-MM-DD
     alias = request.form.get('alias')  # opcional
+    fechaRegistro = request.form.get('fechaRegistro') or datetime.now().strftime('%Y-%m-%d')
 
     # Verificar documento duplicado
     if Jugador.query.filter_by(numeroDocumento=documento).first():
@@ -480,9 +510,13 @@ def add_jugador():
                 extract('year', Aporte.fechaAporte) == anio_actual
             ).group_by(Aporte.idJugador).all()
             actividad = {r.idJugador: {'partidos': r.partidos, 'ultima': r.ultima_fecha} for r in stats}
+        total_sabados = calcular_sabados_transcurridos()
+        mensualidades_jug, mensualidad_vacia, meses_cortos = _calcular_progreso_mensualidades(anio_actual)
         return render_template('jugadores.html', jugadores=jugadores,
                                siguiente_codigo=siguiente_codigo,
-                               actividad=actividad, anio_actual=anio_actual,
+                               actividad=actividad, anio_actual=anio_actual, total_sabados=total_sabados,
+                               mensualidades_jug=mensualidades_jug, mensualidad_vacia=mensualidad_vacia,
+                               meses_cortos=meses_cortos, hoy_str=datetime.now().strftime('%Y-%m-%d'),
                                error=f"Ya existe un jugador con el documento «{documento}». Verificá el número ingresado.")
 
     nuevo = Jugador(
@@ -491,7 +525,8 @@ def add_jugador():
         apellidoJugador=apellido,
         numeroDocumento=documento,
         fechaNacimiento=fechaNacimiento,
-        alias=alias
+        alias=alias,
+        adddate=fechaRegistro
     )
     db.session.add(nuevo)
     db.session.commit()
@@ -528,8 +563,11 @@ def edit_jugador(id):
         ).group_by(Aporte.idJugador).all()
         actividad = {r.idJugador: {'partidos': r.partidos, 'ultima': r.ultima_fecha} for r in stats}
     total_sabados = calcular_sabados_transcurridos()
+    mensualidades_jug, mensualidad_vacia, meses_cortos = _calcular_progreso_mensualidades(anio_actual)
     return render_template('jugadores.html', jugadores=jugadores, jugador_edit=jugador,
-                           actividad=actividad, anio_actual=anio_actual, total_sabados=total_sabados)
+                           actividad=actividad, anio_actual=anio_actual, total_sabados=total_sabados,
+                           mensualidades_jug=mensualidades_jug, mensualidad_vacia=mensualidad_vacia,
+                           meses_cortos=meses_cortos, hoy_str=datetime.now().strftime('%Y-%m-%d'))
 
 # Guardar edición
 @app.route('/update/<int:id>', methods=['POST'])
@@ -544,6 +582,7 @@ def update_jugador(id):
     jugador.numeroDocumento = request.form['numeroDocumento']
     jugador.fechaNacimiento = request.form['fechaNacimiento']
     jugador.alias = request.form.get('alias')
+    jugador.adddate = request.form.get('fechaRegistro') or jugador.adddate
     jugador.activo = request.form.get('activo', '1') == '1'
 
     db.session.commit()
@@ -1298,6 +1337,79 @@ def informes():
                     .order_by(Jugador.nombreJugador.asc(), Jugador.apellidoJugador.asc()).all()
     anio_actual = datetime.now().year
     return render_template('informes.html', jugadores=jugadores, anio_actual=anio_actual)
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    import re as _re
+
+    hoy = datetime.now()
+    anio_actual = hoy.year
+
+    desde_str = request.args.get('desde')
+    hasta_str = request.args.get('hasta')
+    if desde_str and hasta_str:
+        desde = datetime.strptime(desde_str, '%Y-%m-%d').date()
+        hasta = datetime.strptime(hasta_str, '%Y-%m-%d').date()
+    else:
+        desde = hoy.replace(month=1, day=1).date()
+        hasta = hoy.date()
+        desde_str = desde.strftime('%Y-%m-%d')
+        hasta_str = hasta.strftime('%Y-%m-%d')
+
+    aportes_periodo = Aporte.query.filter(Aporte.fechaAporte.between(desde, hasta)).all()
+    egresos_periodo = Egreso.query.filter(Egreso.fechaEgreso.between(desde, hasta)).all()
+
+    total_ingresos = sum(int(a.importe) for a in aportes_periodo)
+    total_egresos  = sum(int(e.importe) for e in egresos_periodo)
+    diferencia     = total_ingresos - total_egresos
+
+    ingresos_por_tipo = {}
+    for a in aportes_periodo:
+        t = a.tipo_aporte.descripcion if a.tipo_aporte else 'Sin tipo'
+        ingresos_por_tipo[t] = ingresos_por_tipo.get(t, 0) + int(a.importe)
+    ingresos_por_tipo = dict(sorted(ingresos_por_tipo.items(), key=lambda kv: -kv[1]))
+
+    egresos_por_tipo = {}
+    for e in egresos_periodo:
+        t = e.tipo_egreso.descripcion if e.tipo_egreso else 'Sin tipo'
+        egresos_por_tipo[t] = egresos_por_tipo.get(t, 0) + int(e.importe)
+    egresos_por_tipo = dict(sorted(egresos_por_tipo.items(), key=lambda kv: -kv[1]))
+
+    total_jugadores = Jugador.query.count()
+    activos   = Jugador.query.filter_by(activo=True).count()
+    inactivos = total_jugadores - activos
+
+    VALOR_CUOTA = 20000
+    tipo_m = TipoAporte.query.filter_by(descripcion='Mensualidad').first()
+    jugadores_con_cuota = set()
+    recaudado_cuotas = 0
+    if tipo_m:
+        for a in Aporte.query.filter(Aporte.codTipoAporte == tipo_m.idTipoAporte).all():
+            m = _re.match(r'^mes:(\d{4})-(\d{2})$', a.descripcion or '')
+            a_anio = int(m.group(1)) if m else a.fechaAporte.year
+            if a_anio != anio_actual:
+                continue
+            jugadores_con_cuota.add(a.idJugador)
+            recaudado_cuotas += int(a.importe)
+
+    con_cuota = len(jugadores_con_cuota)
+    activos_sin_cuota = Jugador.query.filter_by(activo=True)\
+                            .filter(~Jugador.id.in_(jugadores_con_cuota)).count() if jugadores_con_cuota else activos
+    sin_cuota = activos_sin_cuota
+
+    VALOR_ANUAL_CUOTAS = 12 * VALOR_CUOTA
+    valor_esperado_cuotas = activos * VALOR_ANUAL_CUOTAS
+    valor_faltante_cuotas = valor_esperado_cuotas - recaudado_cuotas
+
+    return render_template('dashboard.html',
+        desde=desde_str, hasta=hasta_str,
+        total_ingresos=total_ingresos, total_egresos=total_egresos, diferencia=diferencia,
+        ingresos_por_tipo=ingresos_por_tipo, egresos_por_tipo=egresos_por_tipo,
+        total_jugadores=total_jugadores, activos=activos, inactivos=inactivos,
+        con_cuota=con_cuota, sin_cuota=sin_cuota,
+        valor_esperado_cuotas=valor_esperado_cuotas, valor_faltante_cuotas=valor_faltante_cuotas,
+        anio_actual=anio_actual)
 
 @app.route('/api/mensualidades/<int:jugador_id>/<int:anio>')
 @login_required

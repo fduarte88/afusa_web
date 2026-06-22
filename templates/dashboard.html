@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es-PY">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+    <style>
+        .filtro-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 18px 0 24px;
+            flex-wrap: wrap;
+        }
+        .filtro-row label { font-size: 12px; font-weight: bold; }
+        .filtro-row input {
+            width: 120px;
+            font-size: 12px;
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .btn-filtro {
+            padding: 7px 16px;
+            background: #2c5f8a;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .btn-filtro:hover { filter: brightness(0.9); }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 26px;
+        }
+        .stat-card {
+            border-radius: 8px;
+            padding: 16px 18px;
+            color: #fff;
+        }
+        .stat-card .lbl { font-size: 12px; opacity: 0.9; margin-bottom: 6px; }
+        .stat-card .val { font-size: 22px; font-weight: bold; }
+        .stat-ingresos { background: #2a7a2a; }
+        .stat-egresos  { background: #8a2c2c; }
+        .stat-dif-pos  { background: #2c5f8a; }
+        .stat-dif-neg  { background: #b8860b; }
+
+        .grid2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            margin-bottom: 28px;
+        }
+        .box {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 16px 18px;
+            background: #fff;
+        }
+        .box h2 {
+            margin-top: 0;
+            font-size: 14px;
+            color: #2c5f8a;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 7px;
+            margin-bottom: 10px;
+        }
+        .box table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .box table th { text-align: left; background: #f4f8fc; padding: 6px 8px; }
+        .box table td { padding: 6px 8px; border-bottom: 1px solid #eee; }
+        .box table td.num { text-align: right; font-weight: bold; }
+        .box table tr.total td { border-top: 2px solid #ccc; font-weight: bold; background: #f8f8f8; }
+        .box p.empty { font-size: 12px; color: #888; }
+
+        h2.seccion {
+            font-size: 15px;
+            color: #2c5f8a;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 6px;
+        }
+        .stats-row-jug {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        .stats-row-cuota {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+        .stat-card2 {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 14px 16px;
+            text-align: center;
+            background: #fff;
+        }
+        .stat-card2 .lbl { font-size: 11px; color: #666; margin-bottom: 6px; }
+        .stat-card2 .val { font-size: 22px; font-weight: bold; color: #2c5f8a; }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <ul>
+            <li><a href="{{ url_for('home') }}">Home</a></li>
+            <li><a href="{{ url_for('index') }}">Jugadores</a></li>
+            <li class="dropdown">
+                <a href="#">Operaciones ▾</a>
+                <ul class="submenu">
+                    <li><a href="{{ url_for('caja') }}">Registros de Caja</a></li>
+                    <li><a href="{{ url_for('informes') }}">Informes Generales</a></li>
+                    <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
+                </ul>
+            </li>
+            <li><a href="{{ url_for('about') }}">Acerca de</a></li>
+            {% if current_user.rol == 'admin' %}
+            <li><a href="{{ url_for('usuarios') }}" style="color:#f0c040;">Usuarios</a></li>
+            {% endif %}
+            <li><a href="{{ url_for('logout') }}" style="color:#ccc;">Salir ({{ current_user.username }})</a></li>
+        </ul>
+    </nav>
+{% include '_pageheader.html' %}
+
+    <div style="margin: 30px;">
+        <h1>Dashboard</h1>
+
+        <form class="filtro-row" method="GET">
+            <label>Período desde:</label>
+            <input type="text" id="f_desde" name="desde" value="{{ desde }}" placeholder="DD/MM/AAAA" readonly>
+            <label>hasta:</label>
+            <input type="text" id="f_hasta" name="hasta" value="{{ hasta }}" placeholder="DD/MM/AAAA" readonly>
+            <button type="submit" class="btn-filtro">Aplicar</button>
+        </form>
+
+        <div class="stats-row">
+            <div class="stat-card stat-ingresos">
+                <div class="lbl">Ingresos del período</div>
+                <div class="val">Gs. {{ '{:,.0f}'.format(total_ingresos).replace(',', '.') }}</div>
+            </div>
+            <div class="stat-card stat-egresos">
+                <div class="lbl">Egresos del período</div>
+                <div class="val">Gs. {{ '{:,.0f}'.format(total_egresos).replace(',', '.') }}</div>
+            </div>
+            <div class="stat-card {{ 'stat-dif-pos' if diferencia >= 0 else 'stat-dif-neg' }}">
+                <div class="lbl">Diferencia (saldo)</div>
+                <div class="val">Gs. {{ '{:,.0f}'.format(diferencia).replace(',', '.') }}</div>
+            </div>
+        </div>
+
+        <div class="grid2">
+            <div class="box">
+                <h2>Ingresos por Tipo</h2>
+                {% if ingresos_por_tipo %}
+                <table>
+                    <thead><tr><th>Tipo</th><th style="text-align:right;">Importe</th></tr></thead>
+                    <tbody>
+                    {% for tipo, monto in ingresos_por_tipo.items() %}
+                        <tr><td>{{ tipo }}</td><td class="num">Gs. {{ '{:,.0f}'.format(monto).replace(',', '.') }}</td></tr>
+                    {% endfor %}
+                        <tr class="total"><td>TOTAL</td><td class="num">Gs. {{ '{:,.0f}'.format(total_ingresos).replace(',', '.') }}</td></tr>
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="empty">Sin ingresos en el período.</p>
+                {% endif %}
+            </div>
+            <div class="box">
+                <h2>Egresos por Tipo</h2>
+                {% if egresos_por_tipo %}
+                <table>
+                    <thead><tr><th>Tipo</th><th style="text-align:right;">Importe</th></tr></thead>
+                    <tbody>
+                    {% for tipo, monto in egresos_por_tipo.items() %}
+                        <tr><td>{{ tipo }}</td><td class="num">Gs. {{ '{:,.0f}'.format(monto).replace(',', '.') }}</td></tr>
+                    {% endfor %}
+                        <tr class="total"><td>TOTAL</td><td class="num">Gs. {{ '{:,.0f}'.format(total_egresos).replace(',', '.') }}</td></tr>
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="empty">Sin egresos en el período.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <h2 class="seccion">Jugadores</h2>
+        <div class="stats-row-jug">
+            <div class="stat-card2">
+                <div class="lbl">Total</div>
+                <div class="val">{{ total_jugadores }}</div>
+            </div>
+            <div class="stat-card2">
+                <div class="lbl">Activos</div>
+                <div class="val" style="color:#2a7a2a;">{{ activos }}</div>
+            </div>
+            <div class="stat-card2">
+                <div class="lbl">Inactivos</div>
+                <div class="val" style="color:#888;">{{ inactivos }}</div>
+            </div>
+        </div>
+
+        <h2 class="seccion">Cuotas {{ anio_actual }}</h2>
+        <div class="stats-row-cuota">
+            <div class="stat-card2">
+                <div class="lbl">Con al menos una cuota pagada</div>
+                <div class="val" style="color:#2a7a2a;">{{ con_cuota }}</div>
+            </div>
+            <div class="stat-card2">
+                <div class="lbl">Activos sin ninguna cuota pagada</div>
+                <div class="val" style="color:#c0392b;">{{ sin_cuota }}</div>
+            </div>
+            <div class="stat-card2">
+                <div class="lbl">Valor esperado de cuotas (activos x Gs. 240.000)</div>
+                <div class="val" style="color:#2c5f8a;">Gs. {{ '{:,.0f}'.format(valor_esperado_cuotas).replace(',', '.') }}</div>
+            </div>
+            <div class="stat-card2">
+                <div class="lbl">Valor faltante de cuotas</div>
+                <div class="val" style="color:#c0392b;">Gs. {{ '{:,.0f}'.format(valor_faltante_cuotas).replace(',', '.') }}</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        flatpickr('#f_desde', { locale: "es", dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y" });
+        flatpickr('#f_hasta', { locale: "es", dateFormat: "Y-m-d", altInput: true, altFormat: "d/m/Y" });
+    </script>
+{% include '_footer.html' %}
+</body>
+</html>

@@ -19,8 +19,19 @@
         .tab-jug-btn:not(.active):hover { background:#dde8f2; }
         .tab-jug-content { display:none; border:1px solid #c8d4e0; border-radius:0 6px 6px 6px; background:#fff; padding:16px; }
         .tab-jug-content.active { display:block; }
+        .tabla-scroll { overflow-x:auto; }
+        .col-num { position:sticky; left:0; z-index:2; }
+        thead .col-num { background-color:#2c5f8a; }
+        tbody .col-num { background-color:#fff; color:#aaa; font-size:11px; text-align:center; }
         th.sortable { cursor:pointer; user-select:none; }
         th.sortable:hover { background-color:#1e4a6e; }
+
+        .form-grid { display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px 20px; }
+        .form-grid .form-field { display:flex; flex-direction:column; min-width:160px; flex:1 1 160px; }
+        .form-grid .form-field label { display:block; width:auto; margin-bottom:4px; }
+        .form-grid .form-field input,
+        .form-grid .form-field select { width:100%; box-sizing:border-box; margin-bottom:0; }
+        .form-grid .form-actions { display:flex; align-items:center; gap:14px; flex-basis:100%; margin-top:6px; }
         th.sort-asc::after  { content:' ▲'; font-size:10px; opacity:0.85; }
         th.sort-desc::after { content:' ▼'; font-size:10px; opacity:0.85; }
     </style>
@@ -38,6 +49,7 @@
             <ul class="submenu">
                 <li><a href="{{ url_for('caja') }}">Registros de Caja</a></li>
                     <li><a href="{{ url_for('informes') }}">Informes Generales</a></li>
+                    <li><a href="{{ url_for('dashboard') }}">Dashboard</a></li>
             </ul>
         </li>
 
@@ -72,43 +84,64 @@
     </div>
     {% endif %}
     
-    <form action="{{ url_for('update_jugador', id=jugador_edit.id) if jugador_edit else url_for('add_jugador') }}" method="POST">
-    <label>Código:</label>
-    <input type="number" name="codJugador"
-        value="{{ jugador_edit.codJugador if jugador_edit else siguiente_codigo }}"
-        required readonly
-        style="background-color: #e9ecef; color: #6c757d;"
-    ><br>
+    <form action="{{ url_for('update_jugador', id=jugador_edit.id) if jugador_edit else url_for('add_jugador') }}" method="POST" class="form-grid">
+        <div class="form-field">
+            <label>Código:</label>
+            <input type="number" name="codJugador"
+                value="{{ jugador_edit.codJugador if jugador_edit else siguiente_codigo }}"
+                required readonly
+                style="background-color: #e9ecef; color: #6c757d;"
+            >
+        </div>
 
-    <label>Nombre:</label>
-    <input type="text" name="nombreJugador" value="{{ jugador_edit.nombreJugador if jugador_edit else '' }}" required><br>
+        <div class="form-field">
+            <label>Fecha de Registro:</label>
+            <input type="text" id="fechaRegistro" name="fechaRegistro"
+                   value="{{ jugador_edit.adddate.strftime('%Y-%m-%d') if (jugador_edit and jugador_edit.adddate) else hoy_str }}"
+                   placeholder="DD/MM/AAAA" required readonly>
+        </div>
 
-    <label>Apellido:</label>
-    <input type="text" name="apellidoJugador" value="{{ jugador_edit.apellidoJugador if jugador_edit else '' }}" required><br>
+        <div class="form-field">
+            <label>Nombre:</label>
+            <input type="text" name="nombreJugador" value="{{ jugador_edit.nombreJugador if jugador_edit else '' }}" required>
+        </div>
 
-    <label>Documento:</label>
-    <input type="text" name="numeroDocumento" value="{{ jugador_edit.numeroDocumento if jugador_edit else '' }}" required><br>
+        <div class="form-field">
+            <label>Apellido:</label>
+            <input type="text" name="apellidoJugador" value="{{ jugador_edit.apellidoJugador if jugador_edit else '' }}" required>
+        </div>
 
-    <label>Fecha Nacimiento:</label>
-    <input type="text" id="fechaNacimiento" name="fechaNacimiento"
-           value="{{ jugador_edit.fechaNacimiento.strftime('%Y-%m-%d') if jugador_edit else '' }}"
-           placeholder="DD/MM/AAAA" required readonly><br>
+        <div class="form-field">
+            <label>Documento:</label>
+            <input type="text" name="numeroDocumento" value="{{ jugador_edit.numeroDocumento if jugador_edit else '' }}" required>
+        </div>
 
-    <label>Alias:</label>
-    <input type="text" name="alias" value="{{ jugador_edit.alias if jugador_edit else '' }}"><br>
+        <div class="form-field">
+            <label>Fecha Nacimiento:</label>
+            <input type="text" id="fechaNacimiento" name="fechaNacimiento"
+                   value="{{ jugador_edit.fechaNacimiento.strftime('%Y-%m-%d') if jugador_edit else '' }}"
+                   placeholder="DD/MM/AAAA" required readonly>
+        </div>
 
-    <label>Estado:</label>
-    <select name="activo" style="width:140px; padding:5px; border:1px solid #c8d4e0; border-radius:5px;">
-        <option value="1" {{ 'selected' if (not jugador_edit or jugador_edit.activo) else '' }}>Activo</option>
-        <option value="0" {{ 'selected' if (jugador_edit and not jugador_edit.activo) else '' }}>Inactivo</option>
-    </select><br>
+        <div class="form-field">
+            <label>Alias:</label>
+            <input type="text" name="alias" value="{{ jugador_edit.alias if jugador_edit else '' }}">
+        </div>
 
-    <button type="submit">{{ 'Guardar Cambios' if jugador_edit else 'Agregar' }}</button>
-    
+        <div class="form-field">
+            <label>Estado:</label>
+            <select name="activo" style="padding:6px 10px; border:1px solid #c8d4e0; border-radius:5px;">
+                <option value="1" {{ 'selected' if (not jugador_edit or jugador_edit.activo) else '' }}>Activo</option>
+                <option value="0" {{ 'selected' if (jugador_edit and not jugador_edit.activo) else '' }}>Inactivo</option>
+            </select>
+        </div>
 
-    {% if jugador_edit %}
-        <a href="{{ url_for('index') }}">Cancelar</a>
-    {% endif %}
+        <div class="form-actions">
+            <button type="submit">{{ 'Guardar Cambios' if jugador_edit else 'Agregar' }}</button>
+            {% if jugador_edit %}
+                <a href="{{ url_for('index') }}">Cancelar</a>
+            {% endif %}
+        </div>
 </form>
 
     <hr>
@@ -138,6 +171,9 @@
         </button>
         <button class="tab-jug-btn" id="btn-inactivos" onclick="switchTabJug('inactivos')">
             Inactivos ({{ jugadores|rejectattr('activo')|list|length }})
+        </button>
+        <button class="tab-jug-btn" id="btn-mensualidades" onclick="switchTabJug('mensualidades')">
+            Progreso Mensualidades
         </button>
     </div>
 
@@ -219,9 +255,55 @@
         {{ tabla_jugadores(jugadores|rejectattr('activo')|list) }}
     </div>
 
+    <div class="tab-jug-content" id="tab-mensualidades">
+        <div class="tabla-scroll">
+        <table border="1" cellpadding="5" cellspacing="0" style="margin-top:0; font-size:12px;">
+            <thead>
+                <tr>
+                    <th class="col-num">#</th>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th>Apellido</th>
+                    {% for mes in meses_cortos %}
+                    <th style="text-align:center;">{{ mes }}</th>
+                    {% endfor %}
+                    <th style="text-align:center;">Meses pagados</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for j in jugadores|selectattr('activo')|list %}
+                {% set est = mensualidades_jug.get(j.id, mensualidad_vacia) %}
+                <tr>
+                    <td class="col-num">{{ loop.index }}</td>
+                    <td>{{ j.codJugador }}</td>
+                    <td>{{ j.nombreJugador }}</td>
+                    <td>{{ j.apellidoJugador }}</td>
+                    {% for pagado in est.meses %}
+                    <td style="text-align:center; {{ 'background:#e6f4ea; color:#2a7a2a; font-weight:bold;' if pagado else 'color:#ccc;' }}">
+                        {{ '✓' if pagado else '—' }}
+                    </td>
+                    {% endfor %}
+                    <td style="text-align:center; font-weight:bold; color:#2c5f8a;">{{ est.count }}/12</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="17" style="color:#aaa; text-align:center;">No hay jugadores activos.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
     <script>
 
 flatpickr('#fechaNacimiento', {
+    locale: 'es',
+    dateFormat: 'Y-m-d',
+    altInput: true,
+    altFormat: 'd/m/Y',
+    allowInput: false,
+});
+
+flatpickr('#fechaRegistro', {
     locale: 'es',
     dateFormat: 'Y-m-d',
     altInput: true,
