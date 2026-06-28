@@ -26,12 +26,16 @@
         th.sortable { cursor:pointer; user-select:none; }
         th.sortable:hover { background-color:#1e4a6e; }
 
-        .form-grid { display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px 20px; }
-        .form-grid .form-field { display:flex; flex-direction:column; min-width:160px; flex:1 1 160px; }
+        .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px 30px; align-items:end; }
+        .form-grid .form-field { display:flex; flex-direction:column; }
         .form-grid .form-field label { display:block; width:auto; margin-bottom:4px; }
         .form-grid .form-field input,
         .form-grid .form-field select { width:100%; box-sizing:border-box; margin-bottom:0; }
-        .form-grid .form-actions { display:flex; align-items:center; gap:14px; flex-basis:100%; margin-top:6px; }
+        .form-grid .form-actions { display:flex; align-items:center; gap:14px; grid-column:1 / -1; margin-top:6px; }
+        .req { color:#c0392b; font-weight:bold; }
+        @media (max-width: 640px) {
+            .form-grid { grid-template-columns:1fr; }
+        }
         th.sort-asc::after  { content:' ▲'; font-size:10px; opacity:0.85; }
         th.sort-desc::after { content:' ▼'; font-size:10px; opacity:0.85; }
     </style>
@@ -86,7 +90,7 @@
     
     <form action="{{ url_for('update_jugador', id=jugador_edit.id) if jugador_edit else url_for('add_jugador') }}" method="POST" class="form-grid">
         <div class="form-field">
-            <label>Código:</label>
+            <label>Código: <span class="req">*</span></label>
             <input type="number" name="codJugador"
                 value="{{ jugador_edit.codJugador if jugador_edit else siguiente_codigo }}"
                 required readonly
@@ -95,32 +99,32 @@
         </div>
 
         <div class="form-field">
-            <label>Fecha de Registro:</label>
+            <label>Fecha de Registro: <span class="req">*</span></label>
             <input type="text" id="fechaRegistro" name="fechaRegistro"
                    value="{{ jugador_edit.adddate.strftime('%Y-%m-%d') if (jugador_edit and jugador_edit.adddate) else hoy_str }}"
                    placeholder="DD/MM/AAAA" required readonly>
         </div>
 
         <div class="form-field">
-            <label>Nombre:</label>
+            <label>Nombre: <span class="req">*</span></label>
             <input type="text" name="nombreJugador" value="{{ jugador_edit.nombreJugador if jugador_edit else '' }}" required>
         </div>
 
         <div class="form-field">
-            <label>Apellido:</label>
+            <label>Apellido: <span class="req">*</span></label>
             <input type="text" name="apellidoJugador" value="{{ jugador_edit.apellidoJugador if jugador_edit else '' }}" required>
         </div>
 
         <div class="form-field">
             <label>Documento:</label>
-            <input type="text" name="numeroDocumento" value="{{ jugador_edit.numeroDocumento if jugador_edit else '' }}" required>
+            <input type="text" name="numeroDocumento" value="{{ jugador_edit.numeroDocumento if (jugador_edit and jugador_edit.numeroDocumento) else '' }}">
         </div>
 
         <div class="form-field">
             <label>Fecha Nacimiento:</label>
             <input type="text" id="fechaNacimiento" name="fechaNacimiento"
-                   value="{{ jugador_edit.fechaNacimiento.strftime('%Y-%m-%d') if jugador_edit else '' }}"
-                   placeholder="DD/MM/AAAA" required readonly>
+                   value="{{ jugador_edit.fechaNacimiento.strftime('%Y-%m-%d') if (jugador_edit and jugador_edit.fechaNacimiento) else '' }}"
+                   placeholder="DD/MM/AAAA" readonly>
         </div>
 
         <div class="form-field">
@@ -138,6 +142,7 @@
 
         <div class="form-actions">
             <button type="submit">{{ 'Guardar Cambios' if jugador_edit else 'Agregar' }}</button>
+            <span style="font-size:12px; color:#888;"><span class="req">*</span> Campo obligatorio</span>
             {% if jugador_edit %}
                 <a href="{{ url_for('index') }}">Cancelar</a>
             {% endif %}
@@ -264,6 +269,7 @@
                     <th>Código</th>
                     <th>Nombre</th>
                     <th>Apellido</th>
+                    <th style="text-align:center;">Estado</th>
                     {% for mes in meses_cortos %}
                     <th style="text-align:center;">{{ mes }}</th>
                     {% endfor %}
@@ -271,13 +277,14 @@
                 </tr>
             </thead>
             <tbody>
-            {% for j in jugadores|selectattr('activo')|list %}
+            {% for j in jugadores %}
                 {% set est = mensualidades_jug.get(j.id, mensualidad_vacia) %}
                 <tr>
                     <td class="col-num">{{ loop.index }}</td>
                     <td>{{ j.codJugador }}</td>
                     <td>{{ j.nombreJugador }}</td>
                     <td>{{ j.apellidoJugador }}</td>
+                    <td style="text-align:center; {{ 'color:#2a7a2a;' if j.activo else 'color:#888;' }}">{{ 'Activo' if j.activo else 'Inactivo' }}</td>
                     {% for pagado in est.meses %}
                     <td style="text-align:center; {{ 'background:#e6f4ea; color:#2a7a2a; font-weight:bold;' if pagado else 'color:#ccc;' }}">
                         {{ '✓' if pagado else '—' }}
@@ -286,9 +293,19 @@
                     <td style="text-align:center; font-weight:bold; color:#2c5f8a;">{{ est.count }}/12</td>
                 </tr>
             {% else %}
-                <tr><td colspan="17" style="color:#aaa; text-align:center;">No hay jugadores activos.</td></tr>
+                <tr><td colspan="18" style="color:#aaa; text-align:center;">No hay jugadores registrados.</td></tr>
             {% endfor %}
             </tbody>
+            <tfoot>
+                <tr style="background:#eef4fa; font-weight:bold;">
+                    <td colspan="17" style="text-align:right; padding-right:14px;">Cobrado a la fecha:</td>
+                    <td style="text-align:center; color:#2a7a2a;">Gs. {{ '{:,.0f}'.format(total_cobrado_mensualidad).replace(',', '.') }}</td>
+                </tr>
+                <tr style="background:#fdf2f2; font-weight:bold;">
+                    <td colspan="17" style="text-align:right; padding-right:14px;">Diferencia faltante:</td>
+                    <td style="text-align:center; color:#c0392b;">Gs. {{ '{:,.0f}'.format(total_faltante_mensualidad).replace(',', '.') }}</td>
+                </tr>
+            </tfoot>
         </table>
         </div>
     </div>
